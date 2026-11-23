@@ -79,6 +79,12 @@ export class TasteMap {
     this.draw();
   }
 
+  /** Wipes your ticks and your trail and puts your dot back, for "start again". */
+  forgetUser(point) {
+    this.shown.clear();
+    this.placeUser(point);
+  }
+
   /** Glides your dot to a new place and remembers the path. */
   moveUser(point) {
     this.moveFrom = [this.user[0], this.user[1]];

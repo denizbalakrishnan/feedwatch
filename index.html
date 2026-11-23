@@ -58,7 +58,7 @@
       <section class="map-panel" aria-labelledby="mapHeading">
         <h2 class="visually-hidden" id="mapHeading">Taste map</h2>
         <label class="reveal" id="revealLabel">
-          <input type="checkbox" id="reveal">
+          <input type="checkbox" id="reveal" disabled>
           <span>Reveal what the model never saw</span>
         </label>
         <canvas id="map" role="img" aria-label="Taste map. Every dot is a video and the bright dot is you."></canvas>
@@ -69,8 +69,41 @@
       </section>
     </main>
 
-    <section class="lab" aria-labelledby="labHeading">
+    <section class="lab" id="lab" aria-labelledby="labHeading" hidden>
       <h2 class="visually-hidden" id="labHeading">Take it apart</h2>
+      <details class="panel" id="explorePanel" open>
+        <summary>Exploration <span class="summary-note">should the feed ever show you something it is not sure about?</span></summary>
+        <div class="panel-body">
+          <div>
+            <fieldset class="choices">
+              <legend class="visually-hidden">How the next video is chosen</legend>
+              <label><input type="radio" name="explore" value="greedy" checked>
+                <span><strong>Off.</strong> Always play the top score.</span></label>
+              <label><input type="radio" name="explore" value="epsilon">
+                <span><strong>Random sometimes.</strong> Now and then, play any video at all.</span></label>
+              <label><input type="radio" name="explore" value="thompson">
+                <span><strong>Thompson sampling.</strong> Play the best video for a slightly different you, drawn from what the model is still unsure about.</span></label>
+            </fieldset>
+            <label class="slider" id="exploreAmountRow" hidden>
+              <span>How much</span>
+              <input type="range" id="exploreAmount" min="0" max="100" value="50">
+              <span class="slider-note" id="exploreAmountText"></span>
+            </label>
+          </div>
+          <div>
+            <div class="meter" aria-hidden="true"><div class="meter-fill" id="bubbleFill"></div></div>
+            <p id="bubbleText" aria-live="polite"></p>
+            <p>Swiping 30 times by hand is slow, so let a pretend viewer do it. They like one topic and skip the rest. Watch the map and the meter, then start again with exploration switched on.</p>
+            <div class="inline-controls">
+              <label for="autopilotTopic">Fast-forward 30 swipes by a fan of</label>
+              <select id="autopilotTopic"></select>
+              <button type="button" id="autopilotButton">Go</button>
+              <button type="button" id="resetButton">Start again as a new person</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
       <details class="panel" id="vectorPanel">
         <summary>Your vector <span class="summary-note">the 8 numbers this feed knows you by</span></summary>
         <div class="panel-body">
