@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The feed that never watched a video</title>
+  <meta name="description" content="A working recommendation feed you can take apart. It has never watched a single video: it places you and every video on a hidden taste map learned only from who watched what.">
+  <meta name="theme-color" content="#0f1116">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>This feed has never watched a single video.</h1>
+      <p>Like a few. Skip the rest. Watch where you go.</p>
+    </header>
+
+    <main class="stage">
+      <section class="feed" id="feed" aria-label="Video feed">
+        <div class="card" id="card" tabindex="0" role="group"
+             aria-label="Video card. Swipe up or press the down arrow for the next video. Press L to like.">
+          <div class="card-face" id="cardFace">
+            <div class="card-icon" id="cardIcon" aria-hidden="true"></div>
+            <div class="card-heart" id="cardHeart" aria-hidden="true">♥</div>
+            <div class="card-strip">
+              <div class="card-title" id="cardTitle">Training the model…</div>
+              <div class="card-watch">
+                <div class="watch-track"><div class="watch-fill" id="watchFill"></div></div>
+                <span id="watchText"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="feed-buttons">
+          <button type="button" id="nextButton">Next <span aria-hidden="true">↓</span></button>
+          <button type="button" id="likeButton" class="like"><span aria-hidden="true">♥</span> Like</button>
+        </div>
+        <p class="reading" id="reading" aria-live="polite"></p>
+      </section>
+
+      <section class="map-panel" aria-label="Taste map">
+        <label class="reveal" id="revealLabel">
+          <input type="checkbox" id="reveal">
+          <span>Reveal what the model never saw</span>
+        </label>
+        <canvas id="map" role="img" aria-label="Taste map. Every dot is a video and the bright dot is you."></canvas>
+        <p class="reveal-note" id="revealNote" hidden>
+          These colours are the videos' topics. The model was never given them. It grouped the videos using only who watched what.
+        </p>
+        <p class="map-caption" id="mapCaption">Training the model in your browser…</p>
+      </section>
+    </main>
+
+    <section class="lab" aria-label="Take it apart">
+      <details class="panel" id="vectorPanel">
+        <summary>Your vector <span class="summary-note">the 8 numbers this feed knows you by</span></summary>
+        <div class="panel-body">
+          <div class="vector-bars" id="vectorBars"></div>
+          <div>
+            <p>Every video has 8 numbers too, plus one more for how much people in general watch it. A video's score for you is that general appeal, plus your 8 numbers multiplied one by one with its 8 and added up. The highest score you have not seen plays next.</p>
+            <h3>What you have told it</h3>
+            <p id="evidenceEmpty">Nothing yet. Your 8 numbers are all zero, so the feed opens with what people in general watch most.</p>
+            <table class="evidence">
+              <thead><tr><th>Video</th><th>Watch ratio</th><th>Read as</th><th>Weight</th></tr></thead>
+              <tbody id="evidenceRows"></tbody>
+            </table>
+            <h3>Top of your feed right now</h3>
+            <ol id="upNext"></ol>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <footer class="footer">
+      <p>Everything on this page is computed in your browser. Card titles and icons are made up by us; the model is never shown them.</p>
+    </footer>
+  </div>
+  <script type="module" src="js/ui.js"></script>
+</body>
+</html>

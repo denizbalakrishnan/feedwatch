@@ -1,0 +1,9 @@
+{
+  "name": "the-feed-that-never-watched",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only file: tells Node our .js files are ES modules and gives `npm test`. The site itself has no dependencies and no build step.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
