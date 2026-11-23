@@ -5,10 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>The feed that never watched a video</title>
   <meta name="description" content="A working recommendation feed you can take apart. It has never watched a single video: it places you and every video on a hidden taste map learned only from who watched what.">
-  <meta name="theme-color" content="#0f1116">
+  <meta name="theme-color" content="#0d1220">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- Our own three icons, drawn once here and reused with <use>. -->
+  <svg width="0" height="0" class="visually-hidden" aria-hidden="true">
+    <symbol id="icon-heart" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12 21C12 21 3 14.5 3 8.5C3 5.5 5.2 3.5 7.8 3.5C9.6 3.5 11.1 4.5 12 6C12.9 4.5 14.4 3.5 16.2 3.5C18.8 3.5 21 5.5 21 8.5C21 14.5 12 21 12 21Z"/>
+    </symbol>
+    <symbol id="icon-down" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
+    </symbol>
+    <symbol id="icon-up" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/>
+    </symbol>
+  </svg>
+
   <div class="page">
     <header class="hero">
       <h1>This feed has never watched a single video.</h1>
@@ -16,12 +29,16 @@
     </header>
 
     <main class="stage">
-      <section class="feed" id="feed" aria-label="Video feed">
+      <section class="feed" id="feed" aria-labelledby="feedHeading">
+        <h2 class="visually-hidden" id="feedHeading">Video feed</h2>
         <div class="card" id="card" tabindex="0" role="group"
              aria-label="Video card. Swipe up or press the down arrow for the next video. Press L to like.">
-          <div class="card-face" id="cardFace">
+          <div class="card-face loading" id="cardFace">
             <div class="card-icon" id="cardIcon" aria-hidden="true"></div>
-            <div class="card-heart" id="cardHeart" aria-hidden="true">♥</div>
+            <svg class="card-heart" id="cardHeart" aria-hidden="true"><use href="#icon-heart"/></svg>
+            <div class="swipe-hint" id="swipeHint" aria-hidden="true">
+              <svg class="icon"><use href="#icon-up"/></svg> swipe up to skip
+            </div>
             <div class="card-strip">
               <div class="card-title" id="cardTitle">Training the model…</div>
               <div class="card-watch">
@@ -32,13 +49,14 @@
           </div>
         </div>
         <div class="feed-buttons">
-          <button type="button" id="nextButton">Next <span aria-hidden="true">↓</span></button>
-          <button type="button" id="likeButton" class="like"><span aria-hidden="true">♥</span> Like</button>
+          <button type="button" id="nextButton" disabled>Next <svg class="icon" aria-hidden="true"><use href="#icon-down"/></svg></button>
+          <button type="button" id="likeButton" class="like" disabled><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg> Like</button>
         </div>
         <p class="reading" id="reading" aria-live="polite"></p>
       </section>
 
-      <section class="map-panel" aria-label="Taste map">
+      <section class="map-panel" aria-labelledby="mapHeading">
+        <h2 class="visually-hidden" id="mapHeading">Taste map</h2>
         <label class="reveal" id="revealLabel">
           <input type="checkbox" id="reveal">
           <span>Reveal what the model never saw</span>
@@ -51,7 +69,8 @@
       </section>
     </main>
 
-    <section class="lab" aria-label="Take it apart">
+    <section class="lab" aria-labelledby="labHeading">
+      <h2 class="visually-hidden" id="labHeading">Take it apart</h2>
       <details class="panel" id="vectorPanel">
         <summary>Your vector <span class="summary-note">the 8 numbers this feed knows you by</span></summary>
         <div class="panel-body">

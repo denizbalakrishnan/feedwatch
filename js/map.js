@@ -8,9 +8,14 @@ const HOVER_REACH = 14; // pixels: how close the pointer must be to name a dot
 const FULL_TURN = 2 * Math.PI;
 
 export class TasteMap {
-  constructor(canvas, { colours, categoryLabels, titles, reducedMotion }) {
+  /**
+   * theme holds four colours read from the CSS tokens, as 6-digit hex:
+   * dot (a video before the reveal), you, text and background.
+   */
+  constructor(canvas, { colours, categoryLabels, titles, theme, reducedMotion }) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
+    this.theme = theme;
     this.colours = colours;
     this.categoryLabels = categoryLabels;
     this.titles = titles;
@@ -169,13 +174,13 @@ export class TasteMap {
       const answer = this.shown.get(item);
       context.beginPath();
       context.arc(x, y, DOT_RADIUS, 0, FULL_TURN);
-      context.fillStyle = this.revealed ? this.colours[this.categories[item]] : '#8a93a3';
+      context.fillStyle = this.revealed ? this.colours[this.categories[item]] : this.theme.dot;
       context.globalAlpha = answer === false ? 0.3 : this.revealed ? 0.95 : 0.7;
       context.fill();
       if (answer === true) { // videos you said yes to get a white ring
         context.globalAlpha = 1;
         context.lineWidth = 2;
-        context.strokeStyle = '#ffffff';
+        context.strokeStyle = this.theme.text;
         context.stroke();
       }
     }
@@ -190,9 +195,9 @@ export class TasteMap {
     this.centroids.forEach((centroid, category) => {
       const [x, y] = this.toScreen(centroid);
       context.lineWidth = 4;
-      context.strokeStyle = 'rgba(15, 17, 22, 0.9)';
+      context.strokeStyle = this.theme.background;
       context.strokeText(this.categoryLabels[category], x, y - 16);
-      context.fillStyle = '#ffffff';
+      context.fillStyle = this.theme.text;
       context.fillText(this.categoryLabels[category], x, y - 16);
     });
   }
@@ -200,7 +205,7 @@ export class TasteMap {
   drawTrail(context) {
     if (this.trail.length < 2) return;
     context.lineWidth = 2;
-    context.strokeStyle = '#ffd84d';
+    context.strokeStyle = this.theme.you;
     for (let step = 1; step < this.trail.length; step++) {
       const isLast = step === this.trail.length - 1;
       const [fromX, fromY] = this.toScreen(this.trail[step - 1]);
@@ -220,41 +225,42 @@ export class TasteMap {
     const [targetX, targetY] = this.toScreen(this.points[this.target]);
     context.setLineDash([4, 5]);
     context.lineWidth = 1.5;
-    context.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    context.strokeStyle = this.theme.text;
+    context.globalAlpha = 0.55;
     context.beginPath();
     context.moveTo(userX, userY);
     context.lineTo(targetX, targetY);
     context.stroke();
+    context.globalAlpha = 1;
     context.setLineDash([]);
     context.beginPath();
     context.arc(targetX, targetY, DOT_RADIUS + 5, 0, FULL_TURN);
-    context.strokeStyle = '#ffffff';
     context.stroke();
   }
 
   drawUser(context) {
     const [x, y] = this.toScreen(this.user);
     const glow = context.createRadialGradient(x, y, 2, x, y, 30);
-    glow.addColorStop(0, 'rgba(255, 216, 77, 0.6)');
-    glow.addColorStop(1, 'rgba(255, 216, 77, 0)');
+    glow.addColorStop(0, `${this.theme.you}99`); // the same colour, 60% see-through
+    glow.addColorStop(1, `${this.theme.you}00`); // fading to fully see-through
     context.fillStyle = glow;
     context.beginPath();
     context.arc(x, y, 30, 0, FULL_TURN);
     context.fill();
     context.beginPath();
     context.arc(x, y, 7, 0, FULL_TURN);
-    context.fillStyle = '#ffffff';
+    context.fillStyle = this.theme.text;
     context.fill();
     context.lineWidth = 3;
-    context.strokeStyle = '#ffd84d';
+    context.strokeStyle = this.theme.you;
     context.stroke();
     context.font = '700 13px system-ui, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'alphabetic';
     context.lineWidth = 4;
-    context.strokeStyle = 'rgba(15, 17, 22, 0.9)';
+    context.strokeStyle = this.theme.background;
     context.strokeText('you', x, y - 14);
-    context.fillStyle = '#ffd84d';
+    context.fillStyle = this.theme.you;
     context.fillText('you', x, y - 14);
   }
 
@@ -265,14 +271,14 @@ export class TasteMap {
     const boxWidth = context.measureText(text).width + 16;
     const boxX = Math.min(Math.max(4, x - boxWidth / 2), this.width - boxWidth - 4);
     const boxY = y > 40 ? y - 34 : y + 12;
-    context.fillStyle = 'rgba(15, 17, 22, 0.94)';
-    context.strokeStyle = '#4b5263';
+    context.fillStyle = this.theme.background;
+    context.strokeStyle = this.theme.dot;
     context.lineWidth = 1;
     context.beginPath();
     context.rect(boxX, boxY, boxWidth, 22);
     context.fill();
     context.stroke();
-    context.fillStyle = '#ffffff';
+    context.fillStyle = this.theme.text;
     context.textAlign = 'left';
     context.textBaseline = 'middle';
     context.fillText(text, boxX + 8, boxY + 11);

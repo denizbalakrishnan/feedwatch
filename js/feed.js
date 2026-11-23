@@ -19,6 +19,8 @@ export class Feed {
     this.heart = root.querySelector('#cardHeart');
     this.watchFill = root.querySelector('#watchFill');
     this.watchText = root.querySelector('#watchText');
+    this.swipeHint = root.querySelector('#swipeHint');
+    this.buttons = [root.querySelector('#nextButton'), root.querySelector('#likeButton')];
     this.onReaction = onReaction;
     this.onNeedNext = onNeedNext;
     this.reducedMotion = reducedMotion;
@@ -30,8 +32,8 @@ export class Feed {
     this.dragStartY = null;
     this.lastTick = performance.now();
 
-    root.querySelector('#nextButton').addEventListener('click', () => this.next());
-    root.querySelector('#likeButton').addEventListener('click', () => this.like());
+    this.buttons[0].addEventListener('click', () => this.next());
+    this.buttons[1].addEventListener('click', () => this.like());
     this.card.addEventListener('dblclick', () => this.like());
     this.listenForSwipes();
     document.addEventListener('keydown', (event) => this.onKey(event));
@@ -50,7 +52,8 @@ export class Feed {
     this.icon.textContent = icon;
     this.title.textContent = video.title;
     this.heart.classList.remove('on');
-    this.face.classList.remove('entering');
+    for (const button of this.buttons) button.disabled = false;
+    this.face.classList.remove('loading', 'entering');
     void this.face.offsetWidth; // forces the browser to restart the entrance animation
     this.face.classList.add('entering');
     this.drawWatch();
@@ -60,6 +63,7 @@ export class Feed {
   showEnd() {
     this.video = null;
     this.locked = true;
+    for (const button of this.buttons) button.disabled = true;
     this.icon.textContent = '🏁';
     this.title.textContent = 'You have seen every video.';
     this.watchText.textContent = '';
@@ -73,6 +77,7 @@ export class Feed {
   next() {
     if (this.locked) return;
     this.locked = true;
+    this.swipeHint.hidden = true; // you have found the way; no need to keep pointing
     this.onReaction(this.video, this.watchRatio(), false);
     this.onNeedNext();
   }
@@ -80,6 +85,7 @@ export class Feed {
   like() {
     if (this.locked) return;
     this.locked = true;
+    this.swipeHint.hidden = true;
     this.heart.classList.add('on');
     this.onReaction(this.video, this.watchRatio(), true);
     setTimeout(() => this.onNeedNext(), this.reducedMotion ? 0 : LIKE_PAUSE_MS);

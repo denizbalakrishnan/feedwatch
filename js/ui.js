@@ -55,6 +55,12 @@ function start() {
     colours: CATEGORY_COLOURS,
     categoryLabels: crowd.categories.map((category) => `${category.icon} ${category.name}`),
     titles: crowd.videos.map((video) => video.title),
+    theme: {
+      dot: cssToken('--color-dot'),
+      you: cssToken('--color-you'),
+      text: cssToken('--color-text'),
+      background: cssToken('--color-background'),
+    },
     reducedMotion,
   });
   tasteMap.setVideos(videoPoints, crowd.videos.map((video) => video.category));
@@ -80,6 +86,11 @@ function typicalDistance(points) {
   let total = 0;
   for (const point of points) total += point[0] * point[0] + point[1] * point[1];
   return Math.sqrt(total / points.length);
+}
+
+/** Reads one colour from the tokens at the top of style.css, so the canvas and the page cannot drift apart. */
+function cssToken(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 function mapPointOf(userVector) {
