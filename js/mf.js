@@ -218,6 +218,30 @@ export function meanSquaredMiss(cells, userFactors, itemFactors, itemAppeal, set
 }
 
 /**
+ * A more practical exam than squared error. For each person, rank the videos
+ * that were hidden from training by score, take the top k, and count how
+ * many of those the person really did watch enough to count as a yes.
+ * scoreOf(user, item) is whichever model is being marked, so two different
+ * models can sit exactly the same exam. Returns a share from 0 to 1.
+ */
+export function precisionAtTop(heldOut, scoreOf, settings, k) {
+  const hiddenByUser = new Map();
+  for (const [user, item, ratio] of heldOut) {
+    if (!hiddenByUser.has(user)) hiddenByUser.set(user, []);
+    hiddenByUser.get(user).push([scoreOf(user, item), preferenceOf(ratio, settings)]);
+  }
+  let hits = 0;
+  let shown = 0;
+  for (const cells of hiddenByUser.values()) {
+    if (cells.length < k) continue; // too few hidden videos to fill a top k
+    cells.sort((a, b) => b[0] - a[0]);
+    for (let rank = 0; rank < k; rank++) hits += cells[rank][1];
+    shown += k;
+  }
+  return shown === 0 ? 0 : hits / shown;
+}
+
+/**
  * Scores every video for one person: the video's appeal plus the dot product
  * of the two vectors. Higher = recommend sooner.
  */

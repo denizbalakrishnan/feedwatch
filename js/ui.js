@@ -6,8 +6,9 @@
 import {
   DEFAULT_SETTINGS, UNSEEN, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
 } from './mf.js';
-import { principalAxes, projectOntoAxes, procrustes2D, applyMatrix2D } from './linalg.js';
+import { dot, norm, principalAxes, projectOntoAxes, procrustes2D, applyMatrix2D } from './linalg.js';
 import { pickEpsilonGreedy, pickThompson, categoryMix } from './explore.js';
+import { TWO_TOWER_DEFAULTS, tagsToVector, embedNewItem, embedUser } from './twotower.js';
 import { neighbourAgreement } from './sim.js';
 import { makeRandom } from './random.js';
 import { DEFAULT_CROWD, describeVideos } from './data.js';
@@ -55,6 +56,12 @@ const state = {
   videoPoints: null,
   userScale: 1,
 
+  // the second model (two-tower); null while it is still training
+  tower: null,
+  towerItemVectors: null,
+  towerView: null, // { axes, turn, userScale } for the second model's own map
+  towerUserVector: null,
+
   // you
   reactions: new Map(), // video index -> { watchRatio, liked }, in the order you reacted
   shownMarks: null, // one cell per video: UNSEEN, or 1 once it has been on your card
@@ -72,6 +79,8 @@ const state = {
 };
 
 const tasteMap = new TasteMap(find('map'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
+const towerMap = new TasteMap(find('towerMap'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
+towerMap.setRevealed(true); // the second model is given the tags, so its map has nothing to hide
 const feed = new Feed(find('feed'), { onReaction: recordReaction, onNeedNext: dealNextCard, reducedMotion });
 const trainer = new Worker(new URL('./train.worker.js', import.meta.url), { type: 'module' });
 trainer.onmessage = (event) => onTrainerMessage(event.data);
@@ -108,7 +117,8 @@ function onTrainerMessage(message) {
     drawErrorChart(find('errorChart'), state.errorHistory, DEFAULT_SETTINGS.sweepCount, theme);
     return;
   }
-  showTrainedModel(message);
+  if (message.type === 'tower') showTower(message);
+  else showTrainedModel(message);
 }
 
 /** Takes a freshly trained model from the worker and puts it on the page. */
@@ -119,6 +129,9 @@ function showTrainedModel(result) {
   state.settings = result.modelSettings;
   state.itemFactors = result.itemFactors;
   state.itemAppeal = result.itemAppeal;
+  state.tower = null; // the second model for this crowd arrives in a moment
+  find('newVideoButton').disabled = true;
+  find('towerCaption').textContent = 'Training the second model…';
 
   // Flatten the video vectors to 2-D. If these are the same videos as before,
   // turn the new layout to face the same way as the old one.
@@ -199,6 +212,132 @@ function mapPointOf(userVector) {
   return [flat[0] * state.userScale, flat[1] * state.userScale];
 }
 
+// ---------- the second model (two-tower) ----------
+
+/** Takes the trained two-tower model from the worker and lays out its own map. */
+function showTower(result) {
+  state.tower = result.tower;
+  state.towerItemVectors = result.itemVectors;
+  const axes = principalAxes(result.itemVectors, 2).axes;
+  let points = result.itemVectors.map((vector) => projectOntoAxes(vector, axes));
+  const turn = procrustes2D(points, state.videoPoints); // same videos as the main map, so face the same way
+  points = points.map((point) => applyMatrix2D(turn, point));
+  const crowdPoints = result.userVectors.map((vector) => projectOntoAxes(vector, axes));
+  state.towerView = { axes, turn, userScale: typicalDistance(points) / typicalDistance(crowdPoints) };
+
+  towerMap.setVideos(points, {
+    categories: state.videos.map((video) => video.category),
+    categoryLabels: state.categories.map((category) => `${category.icon} ${category.name}`),
+    titles: state.videos.map((video) => video.title),
+  });
+  towerMap.setMarker(null);
+  fillTagChoices();
+  find('newVideoFirst').textContent = '';
+  find('newVideoSecond').textContent = '';
+  find('newVideoButton').disabled = false;
+
+  find('towerCaption').textContent =
+    `The same ${state.videos.length} videos, placed by the two-tower model and turned to face the same way as the ` +
+    `map at the top. It was trained in ${result.seconds.toFixed(1)} s (${result.stepCount} steps of ` +
+    `${TWO_TOWER_DEFAULTS.batchSize} examples) and was given each video's tag, so here the colours are no secret.`;
+  const percent = (share) => `${Math.round(100 * share)}%`;
+  find('precisionText').textContent =
+    `Both models ranked every person's hidden videos. Of each person's top ${result.topCount}, the share they really ` +
+    `watched: first model ${percent(result.firstPrecision)}, two-tower model ${percent(result.towerPrecision)}. ` +
+    `Picking at random would score about ${percent(result.yesShare)}.`;
+  renderTowerPanel();
+}
+
+function towerPointOf(vector, scale) {
+  const flat = applyMatrix2D(state.towerView.turn, projectOntoAxes(vector, state.towerView.axes));
+  return [flat[0] * scale, flat[1] * scale];
+}
+
+/** The videos you have said yes to. This list is all the two-tower model knows about you. */
+function likedHistory() {
+  const liked = [];
+  for (const item of state.reactions.keys()) {
+    if (preferenceOf(state.evidence[item], state.settings) === 1) liked.push(item);
+  }
+  return liked;
+}
+
+/** The best-scoring videos you have not been shown, best first. */
+function topUnseen(scores, count) {
+  const unseen = [];
+  for (let item = 0; item < scores.length; item++) if (state.shownMarks[item] === UNSEEN) unseen.push(item);
+  unseen.sort((a, b) => scores[b] - scores[a]);
+  return unseen.slice(0, count);
+}
+
+/** Works out where the second model puts you, and what each model would play you next. */
+function renderTowerPanel() {
+  if (!state.tower) return;
+  state.towerUserVector = embedUser(state.tower, likedHistory());
+  towerMap.placeUser(towerPointOf(state.towerUserVector, state.towerView.userScale));
+
+  const firstScores = scoreItems(state.myVector, state.itemFactors, state.itemAppeal);
+  const towerScores = state.towerItemVectors.map((vector) => dot(state.towerUserVector, vector));
+  for (const [listId, scores] of [['firstTop', firstScores], ['towerTop', towerScores]]) {
+    const list = find(listId);
+    list.replaceChildren();
+    for (const item of topUnseen(scores, 5)) {
+      const video = state.videos[item];
+      list.append(make('li', '', `${state.categories[video.category].icon} ${video.title}`));
+    }
+  }
+}
+
+/** The cold-start demo: a video nobody has watched, described only by the tags you ticked. */
+function uploadNewVideo() {
+  const tags = [...document.querySelectorAll('input[name="newVideoTag"]:checked')].map((box) => Number(box.value));
+  if (tags.length === 0) {
+    find('newVideoFirst').textContent = 'Tick at least one tag first.';
+    find('newVideoSecond').textContent = '';
+    return;
+  }
+  const vector = embedNewItem(state.tower, tagsToVector(tags, state.categories.length));
+  towerMap.setMarker(towerPointOf(vector, 1), 'new video');
+
+  const nearest = state.towerItemVectors
+    .map((known, item) => [dot(vector, known) / (norm(vector) * norm(known)), item])
+    .sort((a, b) => b[0] - a[0])
+    .slice(0, 3)
+    .map(([, item]) => state.videos[item].title);
+  const scoreForYou = dot(state.towerUserVector, vector);
+  let ahead = 0;
+  let unseen = 0;
+  state.towerItemVectors.forEach((known, item) => {
+    if (state.shownMarks[item] !== UNSEEN) return;
+    unseen += 1;
+    if (dot(state.towerUserVector, known) > scoreForYou) ahead += 1;
+  });
+
+  find('newVideoFirst').textContent =
+    'First model: cannot place it. Nobody has watched this video, so its column in the watch grid is empty. ' +
+    'It has no numbers, so it cannot be scored and would never be recommended.';
+  find('newVideoSecond').textContent =
+    `Two-tower model: placed at once from its tags alone (the white diamond). Its nearest neighbours are ` +
+    `${nearest.join(', ')}. For you it scores ${scoreForYou.toFixed(2)}, which would put it at number ` +
+    `${ahead + 1} of ${unseen + 1} in your feed.`;
+}
+
+/** One tick-box per tag, for describing a brand-new video. */
+function fillTagChoices() {
+  const holder = find('newVideoTags');
+  for (const old of holder.querySelectorAll('label')) old.remove();
+  state.categories.forEach((category, index) => {
+    const label = make('label');
+    const box = make('input');
+    box.type = 'checkbox';
+    box.name = 'newVideoTag';
+    box.value = String(index);
+    box.checked = index === 0;
+    label.append(box, make('span', '', `${category.icon} ${category.name}`));
+    holder.append(label);
+  });
+}
+
 // ---------- you: reactions, evidence, fold-in ----------
 
 /** What the model is told about one reaction, given the signal choice. UNSEEN means "nothing". */
@@ -233,6 +372,7 @@ function forgetPerson() {
   refoldUser(); // with no evidence this gives all zeros: no taste known yet
   tasteMap.forgetUser(mapPointOf(state.myVector));
   renderVectorPanel();
+  renderTowerPanel();
 }
 
 /** Called once per card. This is the whole of what the model learns about you. */
@@ -260,6 +400,7 @@ function recordReaction(video, watchRatio, liked) {
       `All the model was told: video ${video.index + 1}, ${what}. It reads that as ${verdict} and moves you.`;
   }
   renderVectorPanel();
+  renderTowerPanel();
   if (state.reactions.size === NUDGE_AFTER && !find('reveal').checked) find('revealLabel').classList.add('nudge');
 }
 
@@ -379,12 +520,9 @@ function renderVectorPanel() {
   find('evidenceEmpty').hidden = state.reactions.size > 0;
 
   const scores = scoreItems(state.myVector, state.itemFactors, state.itemAppeal);
-  const unseen = [];
-  for (let item = 0; item < scores.length; item++) if (state.shownMarks[item] === UNSEEN) unseen.push(item);
-  unseen.sort((a, b) => scores[b] - scores[a]);
   const upNext = find('upNext');
   upNext.replaceChildren();
-  for (const item of unseen.slice(0, 5)) upNext.append(make('li', '', `video ${item + 1}: score ${scores[item].toFixed(2)}`));
+  for (const item of topUnseen(scores, 5)) upNext.append(make('li', '', `video ${item + 1}: score ${scores[item].toFixed(2)}`));
 }
 
 function fillTopicPicker() {
@@ -436,8 +574,10 @@ function wireControls() {
       rebuildEvidence();
       tasteMap.moveUser(mapPointOf(state.myVector));
       renderVectorPanel();
+      renderTowerPanel();
     });
   }
+  find('newVideoButton').addEventListener('click', uploadNewVideo);
 
   for (const id of ['crowdUsers', 'crowdTopics', 'crowdNoise', 'crowdSparsity']) {
     find(id).addEventListener('input', describeSliders);

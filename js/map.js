@@ -28,6 +28,7 @@ export class TasteMap {
     this.revealed = false;
     this.shown = new Map(); // video index -> true (read as yes) or false (read as no)
     this.target = -1; // the video playing now
+    this.marker = null; // one extra labelled point, or null
     this.hovered = -1;
     this.user = [0, 0];
     this.trail = []; // every place your dot has settled, oldest first
@@ -77,6 +78,12 @@ export class TasteMap {
 
   markShown(item, readAsYes) {
     this.shown.set(item, readAsYes);
+  }
+
+  /** Shows (or, with null, removes) one extra labelled marker, used for a brand-new video. */
+  setMarker(point, label = '') {
+    this.marker = point ? { point: [point[0], point[1]], label } : null;
+    this.draw();
   }
 
   /** Puts your dot somewhere without animation (used once, at the start). */
@@ -178,7 +185,32 @@ export class TasteMap {
     this.drawTrail(context);
     this.drawTargetLine(context);
     this.drawUser(context);
+    if (this.marker) this.drawMarker(context);
     if (this.hovered !== -1) this.drawTooltip(context, this.hovered);
+  }
+
+  /** A white diamond with a label: a different shape from every other dot, so it does not rely on colour. */
+  drawMarker(context) {
+    const [x, y] = this.toScreen(this.marker.point);
+    const reach = 9;
+    context.beginPath();
+    context.moveTo(x, y - reach);
+    context.lineTo(x + reach, y);
+    context.lineTo(x, y + reach);
+    context.lineTo(x - reach, y);
+    context.closePath();
+    context.fillStyle = this.theme.text;
+    context.fill();
+    context.lineWidth = 3;
+    context.strokeStyle = this.theme.background;
+    context.stroke();
+    context.font = '700 13px system-ui, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'alphabetic';
+    context.lineWidth = 4;
+    context.strokeText(this.marker.label, x, y - 15);
+    context.fillStyle = this.theme.text;
+    context.fillText(this.marker.label, x, y - 15);
   }
 
   drawVideos(context) {

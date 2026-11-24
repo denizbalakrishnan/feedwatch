@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   UNSEEN, DEFAULT_SETTINGS, preferenceOf, confidenceOf, solveFactor, foldInUser, trainALS, trainingLoss,
-  holdOutCells, meanSquaredMiss, scoreItems, bestUnseen,
+  holdOutCells, meanSquaredMiss, precisionAtTop, scoreItems, bestUnseen,
 } from '../js/mf.js';
 import { dot } from '../js/linalg.js';
 import { makeRandom, gaussian } from '../js/random.js';
@@ -146,6 +146,17 @@ test('meanSquaredMiss is the average squared gap between yes/no and the predicti
   // cell 2: watched 0.1 (a no, p = 0), predicted 0.5 + 0 = 0.5, miss -0.5
   const miss = meanSquaredMiss([[0, 0, 1.0], [0, 1, 0.1]], users, items, appeal, settings);
   assert.ok(Math.abs(miss - (0.0625 + 0.25) / 2) < 1e-12);
+});
+
+test('precisionAtTop counts how many of each person\'s top hidden videos were real yeses', () => {
+  // Person 0 has four hidden videos; a perfect scorer puts the two yeses first.
+  // Person 1 has only one hidden video, too few for a top 2, so is left out.
+  const heldOut = [[0, 10, 1.5], [0, 11, 0.1], [0, 12, 0.9], [0, 13, 0.2], [1, 10, 1.0]];
+  const perfect = (user, item) => ({ 10: 9, 11: 1, 12: 8, 13: 2 })[item];
+  const backwards = (user, item) => -perfect(user, item);
+  assert.equal(precisionAtTop(heldOut, perfect, settings, 2), 1);
+  assert.equal(precisionAtTop(heldOut, backwards, settings, 2), 0);
+  assert.equal(precisionAtTop([], perfect, settings, 2), 0);
 });
 
 test('scoreItems is appeal plus the dot product with every video', () => {

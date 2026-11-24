@@ -160,6 +160,34 @@
         </div>
       </details>
 
+      <details class="panel" id="towerPanel">
+        <summary>A brand-new video <span class="summary-note">the modern method: a second model that can place a video nobody has watched</span></summary>
+        <div class="panel-body">
+          <div>
+            <p>The first model gives each video its own list of numbers, learned from who watched it. A video uploaded one second ago has no viewers, so it has no numbers. Feeds today add a second kind of model, a two-tower network, which works a video's numbers out from things known about it. Ours is given each video's tag, which the first model never sees.</p>
+            <fieldset class="choices sideways" id="newVideoTags">
+              <legend>Tags for your new video</legend>
+            </fieldset>
+            <div class="inline-controls">
+              <button type="button" id="newVideoButton" disabled>Upload it</button>
+            </div>
+            <p id="newVideoFirst" aria-live="polite"></p>
+            <p id="newVideoSecond" aria-live="polite"></p>
+          </div>
+          <div>
+            <canvas id="towerMap" role="img" aria-label="Map of the same videos as placed by the two-tower model. A white diamond marks your new video once you upload it."></canvas>
+            <p class="map-caption" id="towerCaption">Training the second model…</p>
+            <h3>Top of your feed, according to each model</h3>
+            <div class="two-lists">
+              <div><h4>First model</h4><ol id="firstTop"></ol></div>
+              <div><h4>Two-tower model</h4><ol id="towerTop"></ol></div>
+            </div>
+            <h3>Both models, marked on the same hidden cells</h3>
+            <p id="precisionText"></p>
+          </div>
+        </div>
+      </details>
+
       <details class="panel" id="vectorPanel">
         <summary>Your vector <span class="summary-note">the <span class="factor-count">8</span> numbers this feed knows you by</span></summary>
         <div class="panel-body">

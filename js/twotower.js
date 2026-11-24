@@ -29,6 +29,7 @@ export const TWO_TOWER_DEFAULTS = {
   learningRate: 0.01,
   historyLength: 10, // at most this many liked videos describe a person
   hideIdRate: 0.25, // how often a video's own ID is hidden in training (see trainTwoTower)
+  hideHistoryRate: 0.1, // how often the person's whole history is hidden in training
 };
 
 // ---------- the building blocks, each with its backward pass ----------
@@ -258,20 +259,24 @@ export function adamStep(model, gradients, adam, learningRate) {
  * their likes as the answer, and up to historyLength of their other likes to
  * describe them. A quarter of the time the answer video's own ID is hidden,
  * which forces the video tower to manage on tags alone; that is exactly the
- * situation of a brand-new video. onStep(step, loss) reports progress.
+ * situation of a brand-new video. One time in ten the person's history is
+ * hidden instead, so the model also learns what to offer somebody it knows
+ * nothing about. onStep(step, loss) reports progress.
  */
 export function trainTwoTower(model, likedByUser, itemTags, settings, random, onStep = null) {
   const eligible = [];
   likedByUser.forEach((liked, user) => { if (liked.length >= 2) eligible.push(user); });
   const adam = createAdam(model);
   const lossHistory = [];
+  if (eligible.length === 0) return lossHistory; // nobody liked two videos, so there is nothing to learn from
   for (let step = 1; step <= settings.stepCount; step++) {
     const batch = [];
     for (let b = 0; b < settings.batchSize; b++) {
       const liked = likedByUser[eligible[Math.floor(random() * eligible.length)]];
       const item = liked[Math.floor(random() * liked.length)];
       const history = [];
-      for (let tries = 0; tries < settings.historyLength; tries++) {
+      const triesAllowed = random() < settings.hideHistoryRate ? 0 : settings.historyLength;
+      for (let tries = 0; tries < triesAllowed; tries++) {
         const other = liked[Math.floor(random() * liked.length)];
         if (other !== item) history.push(other);
       }
@@ -284,6 +289,13 @@ export function trainTwoTower(model, likedByUser, itemTags, settings, random, on
     if (onStep) onStep(step, loss);
   }
   return lossHistory;
+}
+
+/** Turns a list of tag numbers into the tag vector the video tower reads: a 1 for each tag carried, 0 elsewhere. */
+export function tagsToVector(tags, tagCount) {
+  const vector = new Float64Array(tagCount);
+  for (const tag of tags) vector[tag] = 1;
+  return vector;
 }
 
 /** The final vector of a video the model was trained on. */
