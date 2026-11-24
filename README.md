@@ -39,7 +39,11 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 
 ## What we simplified, and what did not work
 
-- **The crowd is simulated.** We tried the real KuaiRec dataset first. In its fully observed part, the typical viewer watches about 7.5 seconds of every video whatever its length, so watch time says almost nothing about topic there, and the map did not sort videos by category (0.14 against 0.10 for pure chance). We would rather show a simulation that says it is one than a real-data picture that does not show what we claim. More on this will be added here.
+- **The crowd on the first screen is simulated.** We tried the real KuaiRec dataset first, expecting its videos to group by topic the same way. They did not.
+  - In the part of KuaiRec where every person saw every video (1,411 people, 3,327 videos), the typical viewer watches between 7.3 and 7.8 seconds of four videos in five, although the videos run from about 6 to 22 seconds. Watch ratio there is mostly a measure of video length. Once that is removed, a video's nearest neighbour shares its category 14% of the time, against 10% for guessing.
+  - In the larger part, which records which videos the app chose to show each person, topic does show up: 38% against 10% in the model's 16 dimensions. But on a flat two-dimensional map it falls back to 10%.
+  - The "Real people" panel runs that second test live, on 1,000 real people and 800 real videos, so you can see the muddle for yourself.
+  - We would rather show a simulation that says it is one than a real-data picture that does not show what we claim.
 - Real platforms use many more signals, far bigger models and several ranking stages.
 - The two-tower model reads one tag per video (its topic). Real ones read the picture, the sound and the caption. Ours also treats other videos in a training batch as wrong answers without correcting for popular videos turning up more often, which the 2019 paper does correct.
 - With no history at all, the two-tower model gives everybody the same single guess, which tends to be one topic. The first model falls back on general appeal and gives a mix.
@@ -53,6 +57,7 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 | The per-item bias term (Koren, Bell & Volinsky, 2009) | `js/mf.js` | Separates "everyone watches this" from "you in particular would" |
 | The two-tower design with in-batch sampled softmax (Covington et al., 2016; Yi et al., 2019) | `js/twotower.js` | It is how large feeds place brand-new videos |
 | The Adam optimiser (Kingma & Ba, 2015) | `adamStep` in `js/twotower.js` | Trains reliably without hand-tuning a step size for every number |
+| KuaiRec dataset (Gao et al., CIKM 2022, https://kuairec.com, CC BY-SA 4.0) | `data/kuairec_shown.json`, the "Real people" panel | Real short-video data that may be shared; our file is a subsample made by `scripts/build_data.py` and is shared under the same licence |
 | mulberry32 random number recipe (Tommy Ettinger, public domain) | `js/random.js` | A few lines, repeatable from a seed |
 | Okabe-Ito colour palette | `js/ui.js` | Stays distinct for colour-blind viewers |
 | Claude Code (AI coding tool) | Throughout | Used to write code and tests, which we then read, questioned and learned to explain |
@@ -67,6 +72,8 @@ python -m http.server 8123
 
 Then open http://localhost:8123. To run the tests: `node --test`.
 
+To rebuild the real-data file, download `KuaiRec.zip` from https://kuairec.com and run `python scripts/build_data.py PATH/TO/KuaiRec.zip`. The raw download is not kept in this repository.
+
 ## Licence
 
-Code: MIT (see `LICENSE`).
+Code: MIT (see `LICENSE`). `data/kuairec_shown.json` is derived from KuaiRec and shared under CC BY-SA 4.0.

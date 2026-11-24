@@ -25,6 +25,27 @@ const TITLE_STEMS = [
 ];
 
 /**
+ * Fetches the real-data file (made by scripts/build_data.py from KuaiRec) and
+ * unpacks it. The file stores one bit per (person, video): 1 if the real app
+ * showed that person that video. Returns the grid as rows of 1s and 0s, the
+ * category names, and each video's category (kept back for marking only).
+ */
+export async function loadRealCrowd() {
+  const file = await (await fetch('data/kuairec_shown.json')).json();
+  const bytes = Uint8Array.from(atob(file.shownBits), (character) => character.charCodeAt(0));
+  const grid = [];
+  for (let user = 0; user < file.userCount; user++) {
+    const row = new Float32Array(file.videoCount);
+    for (let video = 0; video < file.videoCount; video++) {
+      const position = user * file.videoCount + video;
+      row[video] = (bytes[position >> 3] >> (position & 7)) & 1; // pick one bit out of its byte
+    }
+    grid.push(row);
+  }
+  return { grid, categories: file.categories, videoCategory: file.videoCategory };
+}
+
+/**
  * Turns the simulator's hidden topics into things a person can look at:
  *   videos      for each video a made-up title, a length in seconds and its
  *               hidden category (used only by the reveal)

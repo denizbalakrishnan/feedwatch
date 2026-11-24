@@ -188,6 +188,26 @@
         </div>
       </details>
 
+      <details class="panel" id="realPanel">
+        <summary>Real people <span class="summary-note">the same code on data from a real short-video app</span></summary>
+        <div class="panel-body">
+          <div>
+            <p>Everything above uses a simulated crowd. This panel uses <a href="https://kuairec.com">KuaiRec</a>, a public record from the Kuaishou app: for 1,000 real people and 800 real videos, whether the app showed that person that video. The model gets that grid and nothing else. Each video's category is kept back to mark it with.</p>
+            <div class="inline-controls">
+              <button type="button" id="realButton">Train on the real grid</button>
+              <span id="realStatus" aria-live="polite"></span>
+            </div>
+            <p id="realText" aria-live="polite"></p>
+            <p>We tried watch time first. In the part of KuaiRec where everyone saw every video, the typical viewer watched about 7.5 seconds of each one whatever its length, so watch time said almost nothing about topic (14% against 10% for guessing, measured offline). That is why the crowd on the first screen is simulated, and why we say so.</p>
+          </div>
+          <div>
+            <canvas id="realMap" role="img" aria-label="Map of 800 real videos placed by the model and coloured by category. The colours are mixed together rather than grouped."></canvas>
+            <ul class="legend" id="realLegend"></ul>
+            <p class="map-caption">Data: KuaiRec, Gao et al., CIKM 2022, shared under CC BY-SA 4.0. Our subsample keeps no captions, no user details and no original ID numbers.</p>
+          </div>
+        </div>
+      </details>
+
       <details class="panel" id="vectorPanel">
         <summary>Your vector <span class="summary-note">the <span class="factor-count">8</span> numbers this feed knows you by</span></summary>
         <div class="panel-body">

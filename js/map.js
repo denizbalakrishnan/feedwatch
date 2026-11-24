@@ -12,11 +12,12 @@ export class TasteMap {
    * theme holds four colours read from the CSS tokens, as 6-digit hex:
    * dot (a video before the reveal), you, text and background.
    */
-  constructor(canvas, { colours, theme, reducedMotion }) {
+  constructor(canvas, { colours, theme, reducedMotion, videosOnly = false }) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
     this.theme = theme;
     this.colours = colours;
+    this.videosOnly = videosOnly; // true = draw the video dots alone: no "you", no labels
     this.categoryLabels = [];
     this.titles = [];
     this.reducedMotion = reducedMotion;
@@ -181,10 +182,12 @@ export class TasteMap {
     const context = this.context;
     context.clearRect(0, 0, this.width, this.height);
     this.drawVideos(context);
-    if (this.revealed) this.drawCategoryLabels(context);
-    this.drawTrail(context);
-    this.drawTargetLine(context);
-    this.drawUser(context);
+    if (!this.videosOnly) {
+      if (this.revealed) this.drawCategoryLabels(context);
+      this.drawTrail(context);
+      this.drawTargetLine(context);
+      this.drawUser(context);
+    }
     if (this.marker) this.drawMarker(context);
     if (this.hovered !== -1) this.drawTooltip(context, this.hovered);
   }

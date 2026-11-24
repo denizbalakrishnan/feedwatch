@@ -11,13 +11,16 @@ import { pickEpsilonGreedy, pickThompson, categoryMix } from './explore.js';
 import { TWO_TOWER_DEFAULTS, tagsToVector, embedNewItem, embedUser } from './twotower.js';
 import { neighbourAgreement } from './sim.js';
 import { makeRandom } from './random.js';
-import { DEFAULT_CROWD, describeVideos } from './data.js';
+import { DEFAULT_CROWD, describeVideos, loadRealCrowd } from './data.js';
 import { TasteMap } from './map.js';
 import { Feed } from './feed.js';
 import { drawErrorChart } from './lab.js';
 
 // The Okabe-Ito palette: eight colours chosen to stay distinct for colour-blind viewers.
 const CATEGORY_COLOURS = ['#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2', '#D55E00', '#CC79A7', '#BBBBBB'];
+const REAL_COLOURS = [...CATEGORY_COLOURS, '#882255', '#44AA99']; // the real data has ten categories
+// The real grid holds 1s and 0s, so every cell counts equally (confidenceGain 0), and 16 numbers per video.
+const REAL_SETTINGS = { ...DEFAULT_SETTINGS, factorCount: 16, confidenceGain: 0, sweepCount: 8 };
 const NO_TURN = [[1, 0], [0, 1]];
 const NUDGE_AFTER = 3; // reactions before we point at the reveal switch
 const MAX_EPSILON = 0.5; // "random sometimes" at full strength: every other video is random
@@ -81,6 +84,9 @@ const state = {
 const tasteMap = new TasteMap(find('map'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
 const towerMap = new TasteMap(find('towerMap'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
 towerMap.setRevealed(true); // the second model is given the tags, so its map has nothing to hide
+const realMap = new TasteMap(find('realMap'), { colours: REAL_COLOURS, theme, reducedMotion, videosOnly: true });
+realMap.setRevealed(true);
+let realCrowd = null; // the real-data grid, fetched the first time it is asked for
 const feed = new Feed(find('feed'), { onReaction: recordReaction, onNeedNext: dealNextCard, reducedMotion });
 const trainer = new Worker(new URL('./train.worker.js', import.meta.url), { type: 'module' });
 trainer.onmessage = (event) => onTrainerMessage(event.data);
@@ -110,6 +116,14 @@ function requestTraining() {
 }
 
 function onTrainerMessage(message) {
+  if (message.type === 'realSweep') {
+    find('realStatus').textContent = `Training: sweep ${message.sweep} of ${REAL_SETTINGS.sweepCount}`;
+    return;
+  }
+  if (message.type === 'real') {
+    showRealModel(message);
+    return;
+  }
   if (message.jobId !== state.jobId) return; // an answer to a request we have since replaced
   if (message.type === 'sweep') {
     state.errorHistory.push(message);
@@ -336,6 +350,55 @@ function fillTagChoices() {
     label.append(box, make('span', '', `${category.icon} ${category.name}`));
     holder.append(label);
   });
+}
+
+// ---------- real people ----------
+
+/** Fetches the real grid (once) and asks the worker to train the first model on it. */
+async function trainOnRealPeople() {
+  find('realButton').disabled = true;
+  find('realStatus').textContent = 'Fetching the grid…';
+  try {
+    realCrowd = realCrowd || await loadRealCrowd();
+  } catch (error) {
+    find('realStatus').textContent = 'The data file could not be loaded. Check your connection and try again.';
+    find('realButton').disabled = false;
+    return;
+  }
+  find('realStatus').textContent = 'Training…';
+  trainer.postMessage({ realGrid: realCrowd.grid, settings: REAL_SETTINGS });
+}
+
+/** Marks the model trained on real people against the real categories, and draws its map. */
+function showRealModel(result) {
+  const axes = principalAxes(result.itemFactors, 2).axes;
+  const points = result.itemFactors.map((factor) => projectOntoAxes(factor, axes));
+  realMap.setVideos(points, {
+    categories: realCrowd.videoCategory,
+    categoryLabels: realCrowd.categories,
+    titles: realCrowd.videoCategory.map((category, video) => `${realCrowd.categories[category]} video ${video + 1}`),
+  });
+  const legend = find('realLegend');
+  legend.replaceChildren();
+  realCrowd.categories.forEach((name, category) => {
+    const entry = make('li', '', name);
+    const swatch = make('span', 'swatch');
+    swatch.style.background = REAL_COLOURS[category];
+    entry.prepend(swatch);
+    legend.append(entry);
+  });
+
+  const inModel = neighbourAgreement(result.itemFactors, realCrowd.videoCategory);
+  const onMap = neighbourAgreement(points, realCrowd.videoCategory);
+  const chance = 1 / realCrowd.categories.length;
+  find('realStatus').textContent = `Trained in ${result.seconds.toFixed(1)} s.`;
+  find('realText').textContent =
+    `Marked against the real categories: a video's nearest neighbour shares its category ` +
+    `${Math.round(100 * inModel)}% of the time in the model's ${REAL_SETTINGS.factorCount} dimensions, ` +
+    `${(inModel / chance).toFixed(1)} times what guessing would score (${Math.round(100 * chance)}%). ` +
+    `On the flat map it is ${Math.round(100 * onMap)}%. So topic does show up in who was shown what, ` +
+    'but faintly, and squeezing 16 dimensions onto a flat map loses most of it. Real people are far messier than our simulated crowd.';
+  find('realButton').disabled = false;
 }
 
 // ---------- you: reactions, evidence, fold-in ----------
@@ -578,6 +641,7 @@ function wireControls() {
     });
   }
   find('newVideoButton').addEventListener('click', uploadNewVideo);
+  find('realButton').addEventListener('click', trainOnRealPeople);
 
   for (const id of ['crowdUsers', 'crowdTopics', 'crowdNoise', 'crowdSparsity']) {
     find(id).addEventListener('input', describeSliders);

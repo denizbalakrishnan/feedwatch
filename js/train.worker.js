@@ -19,6 +19,10 @@ const HELD_OUT_SHARE = 0.1;
 const TOP_COUNT = 10;
 
 self.onmessage = (event) => {
+  if (event.data.realGrid) {
+    trainOnRealGrid(event.data.realGrid, event.data.settings);
+    return;
+  }
   const { jobId, crowdSettings, modelSettings } = event.data;
   const began = performance.now();
 
@@ -55,6 +59,17 @@ self.onmessage = (event) => {
 
   trainSecondModel(jobId, crowd, split, model, modelSettings, crowdSettings.seed);
 };
+
+/**
+ * The "Real people" panel: trains the very same first model on a grid from a
+ * real app, where each cell is 1 if the app showed that person that video
+ * and 0 if it did not.
+ */
+function trainOnRealGrid(grid, settings) {
+  const began = performance.now();
+  const model = trainALS(grid, settings, (progress) => self.postMessage({ type: 'realSweep', sweep: progress.sweep }));
+  self.postMessage({ type: 'real', seconds: (performance.now() - began) / 1000, itemFactors: model.itemFactors });
+}
 
 /**
  * Trains the two-tower model on the same training cells, then marks both

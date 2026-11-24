@@ -243,7 +243,12 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
 .choices.sideways input { margin: 0; }
 
 #errorChart { display: block; width: 100%; height: 180px; }
-#towerMap { display: block; width: 100%; height: 320px; }
+#towerMap, #realMap { display: block; width: 100%; height: 320px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0; padding: 0; list-style: none; font-size: 0.88rem; }
+.legend li { display: flex; align-items: center; gap: var(--space-2); }
+.swatch { width: 12px; height: 12px; border-radius: 50%; }
+a { color: var(--color-you); }
 
 .two-lists { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .two-lists h4 { margin: 0 0 var(--space-1); color: var(--color-text-muted); font-size: 0.9rem; font-weight: 600; }
