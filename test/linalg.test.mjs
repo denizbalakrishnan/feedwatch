@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  zeroMatrix, dot, norm, choleskyFactor, choleskySolve, principalAxes, projectOntoAxes, procrustes2D,
+  zeroMatrix, dot, norm, choleskyFactor, choleskySolve, principalAxes, projectOntoAxes, procrustes2D, applyMatrix2D,
 } from '../js/linalg.js';
 import { makeRandom, gaussian } from '../js/random.js';
 
@@ -55,12 +55,12 @@ test('projectOntoAxes measures from the centre it is given', () => {
   close(flat[1], 3);
 });
 
-function turned(points, matrix) {
-  return points.map((point) => Float64Array.of(
-    matrix[0][0] * point[0] + matrix[0][1] * point[1],
-    matrix[1][0] * point[0] + matrix[1][1] * point[1],
-  ));
-}
+const turned = (points, matrix) => points.map((point) => applyMatrix2D(matrix, point));
+
+test('applyMatrix2D multiplies a point by a 2x2 matrix', () => {
+  const moved = applyMatrix2D([[1, 2], [3, 4]], [5, 6]);
+  assert.deepEqual(Array.from(moved), [17, 39]);
+});
 
 test('procrustes2D undoes a rotation', () => {
   const random = makeRandom(3);

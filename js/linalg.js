@@ -193,3 +193,11 @@ export function procrustes2D(newPoints, oldPoints) {
   const c = Math.cos(angle), s = Math.sin(angle);
   return [Float64Array.of(c, s), Float64Array.of(s, -c)];
 }
+
+/** Applies a 2x2 matrix (such as the one procrustes2D returns) to one 2-D point. */
+export function applyMatrix2D(matrix, point) {
+  return Float64Array.of(
+    matrix[0][0] * point[0] + matrix[0][1] * point[1],
+    matrix[1][0] * point[0] + matrix[1][1] * point[1],
+  );
+}

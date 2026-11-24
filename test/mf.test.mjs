@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   UNSEEN, DEFAULT_SETTINGS, preferenceOf, confidenceOf, solveFactor, foldInUser, trainALS, trainingLoss,
-  scoreItems, bestUnseen,
+  holdOutCells, meanSquaredMiss, scoreItems, bestUnseen,
 } from '../js/mf.js';
 import { dot } from '../js/linalg.js';
 import { makeRandom, gaussian } from '../js/random.js';
@@ -121,6 +121,31 @@ test('trainALS gives the same answer for the same seed', () => {
   const second = trainALS(grid, settings);
   assert.deepEqual(first.itemFactors, second.itemFactors);
   assert.deepEqual(first.itemAppeal, second.itemAppeal);
+});
+
+test('holdOutCells hides about the requested share and never trains on a hidden cell', () => {
+  const random = makeRandom(61);
+  const grid = Array.from({ length: 40 }, () =>
+    Float32Array.from({ length: 50 }, () => (random() < 0.25 ? UNSEEN : 1.6 * random())));
+  let seen = 0;
+  for (const row of grid) for (const ratio of row) if (ratio !== UNSEEN) seen++;
+  const { training, heldOut, trainingSample } = holdOutCells(grid, 0.2, makeRandom(62));
+  assert.ok(Math.abs(heldOut.length / seen - 0.2) < 0.04, `held out ${heldOut.length} of ${seen}`);
+  for (const [user, item, ratio] of heldOut) {
+    assert.equal(training[user][item], UNSEEN);
+    assert.equal(grid[user][item], ratio, 'the original grid is left alone');
+  }
+  for (const [user, item, ratio] of trainingSample) assert.equal(training[user][item], ratio);
+});
+
+test('meanSquaredMiss is the average squared gap between yes/no and the prediction', () => {
+  const users = [Float64Array.of(1, 0)];
+  const items = [Float64Array.of(0.5, 0), Float64Array.of(0, 9)];
+  const appeal = Float64Array.of(0.25, 0.5);
+  // cell 1: watched 1.0 (a yes, p = 1), predicted 0.25 + 0.5 = 0.75, miss 0.25
+  // cell 2: watched 0.1 (a no, p = 0), predicted 0.5 + 0 = 0.5, miss -0.5
+  const miss = meanSquaredMiss([[0, 0, 1.0], [0, 1, 0.1]], users, items, appeal, settings);
+  assert.ok(Math.abs(miss - (0.0625 + 0.25) / 2) < 1e-12);
 });
 
 test('scoreItems is appeal plus the dot product with every video', () => {

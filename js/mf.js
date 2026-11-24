@@ -177,6 +177,47 @@ export function trainingLoss(watchRatios, userFactors, itemFactors, itemAppeal, 
 }
 
 /**
+ * Hides a share of the answers so the model can be marked on cells it never
+ * trained on. Returns a copy of the grid with those cells set to UNSEEN, the
+ * hidden cells themselves as [user, item, watchRatio], and an equally sized
+ * sample of cells that were kept, for a fair comparison.
+ */
+export function holdOutCells(watchRatios, share, random) {
+  const training = watchRatios.map((row) => Float32Array.from(row));
+  const heldOut = [];
+  const trainingSample = [];
+  for (let user = 0; user < watchRatios.length; user++) {
+    for (let item = 0; item < watchRatios[user].length; item++) {
+      const ratio = watchRatios[user][item];
+      if (ratio === UNSEEN) continue;
+      if (random() < share) {
+        heldOut.push([user, item, ratio]);
+        training[user][item] = UNSEEN;
+      } else if (random() < share) {
+        trainingSample.push([user, item, ratio]);
+      }
+    }
+  }
+  return { training, heldOut, trainingSample };
+}
+
+/**
+ * How wrong the model is on a list of cells: the average of
+ * (p - prediction)^2. If this keeps falling on cells the model trained on
+ * but rises on hidden cells, the model is memorising noise (overfitting).
+ */
+export function meanSquaredMiss(cells, userFactors, itemFactors, itemAppeal, settings) {
+  if (cells.length === 0) return 0;
+  let total = 0;
+  for (const [user, item, ratio] of cells) {
+    const prediction = itemAppeal[item] + dot(userFactors[user], itemFactors[item]);
+    const miss = preferenceOf(ratio, settings) - prediction;
+    total += miss * miss;
+  }
+  return total / cells.length;
+}
+
+/**
  * Scores every video for one person: the video's appeal plus the dot product
  * of the two vectors. Higher = recommend sooner.
  */

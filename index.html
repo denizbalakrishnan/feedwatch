@@ -104,14 +104,70 @@
         </div>
       </details>
 
+      <details class="panel" id="signalPanel">
+        <summary>Signal <span class="summary-note">what counts as evidence about you?</span></summary>
+        <div class="panel-body">
+          <fieldset class="choices">
+            <legend class="visually-hidden">What the model is told about each video you see</legend>
+            <label><input type="radio" name="signal" value="both" checked>
+              <span><strong>Likes and watch time.</strong> A like is a firm yes; otherwise how long you stayed decides.</span></label>
+            <label><input type="radio" name="signal" value="likes">
+              <span><strong>Likes only.</strong> Videos you did not like tell the model nothing.</span></label>
+            <label><input type="radio" name="signal" value="watch">
+              <span><strong>Watch time only.</strong> The heart is ignored.</span></label>
+          </fieldset>
+          <p>Switching re-reads everything you have done so far and moves your dot. With likes only, a skip is silence, so the feed never learns what you do not want. With watch time, every swipe says something, including the ones you did not mean.</p>
+        </div>
+      </details>
+
+      <details class="panel" id="labPanel">
+        <summary>How do we know it works? <span class="summary-note">change the crowd or the model, retrain, and mark it</span></summary>
+        <div class="panel-body">
+          <div>
+            <p>This crowd is simulated, so every video has a hidden topic we know and the model does not. That lets us mark the model's work, which nobody can do with real viewers.</p>
+            <fieldset class="choices sideways">
+              <legend>Numbers per person and per video</legend>
+              <label><input type="radio" name="factorCount" value="2"> <span>2</span></label>
+              <label><input type="radio" name="factorCount" value="4"> <span>4</span></label>
+              <label><input type="radio" name="factorCount" value="8" checked> <span>8</span></label>
+              <label><input type="radio" name="factorCount" value="16"> <span>16</span></label>
+            </fieldset>
+            <label class="slider"><span>Crowd</span>
+              <input type="range" id="crowdUsers" min="10" max="2000" step="10" value="300">
+              <span class="slider-note" id="crowdUsersText"></span></label>
+            <label class="slider"><span>Topics</span>
+              <input type="range" id="crowdTopics" min="3" max="8" step="1" value="8">
+              <span class="slider-note" id="crowdTopicsText"></span></label>
+            <label class="slider"><span>Noise</span>
+              <input type="range" id="crowdNoise" min="0" max="100" step="5" value="25">
+              <span class="slider-note" id="crowdNoiseText"></span></label>
+            <label class="slider"><span>Gaps</span>
+              <input type="range" id="crowdSparsity" min="0" max="95" step="5" value="0">
+              <span class="slider-note" id="crowdSparsityText"></span></label>
+            <div class="inline-controls">
+              <button type="button" id="trainButton" disabled>Train again</button>
+              <span id="trainStatus" aria-live="polite"></span>
+            </div>
+          </div>
+          <div>
+            <h3>How wrong it was after each training sweep</h3>
+            <canvas id="errorChart" role="img" aria-label="Line chart of the model's error after each training sweep, on cells it trained on and on cells hidden from it. The numbers are in the sentence below."></canvas>
+            <p id="errorText"></p>
+            <h3>Marked against the hidden topics</h3>
+            <p id="recoveryText"></p>
+            <p>Changing the crowd starts you again as a new person. Changing only the model keeps your history, and the map is turned to face the same way as before so you can compare.</p>
+          </div>
+        </div>
+      </details>
+
       <details class="panel" id="vectorPanel">
-        <summary>Your vector <span class="summary-note">the 8 numbers this feed knows you by</span></summary>
+        <summary>Your vector <span class="summary-note">the <span class="factor-count">8</span> numbers this feed knows you by</span></summary>
         <div class="panel-body">
           <div class="vector-bars" id="vectorBars"></div>
           <div>
-            <p>Every video has 8 numbers too, plus one more for how much people in general watch it. A video's score for you is that general appeal, plus your 8 numbers multiplied one by one with its 8 and added up. The highest score you have not seen plays next.</p>
+            <p>Every video has <span class="factor-count">8</span> numbers too, plus one more for how much people in general watch it. A video's score for you is that general appeal, plus your numbers multiplied one by one with its numbers and added up. The highest score you have not seen plays next.</p>
             <h3>What you have told it</h3>
-            <p id="evidenceEmpty">Nothing yet. Your 8 numbers are all zero, so the feed opens with what people in general watch most.</p>
+            <p id="evidenceEmpty">Nothing yet. Your numbers are all zero, so the feed opens with what people in general watch most.</p>
             <table class="evidence">
               <thead><tr><th>Video</th><th>Watch ratio</th><th>Read as</th><th>Weight</th></tr></thead>
               <tbody id="evidenceRows"></tbody>

@@ -12,13 +12,13 @@ export class TasteMap {
    * theme holds four colours read from the CSS tokens, as 6-digit hex:
    * dot (a video before the reveal), you, text and background.
    */
-  constructor(canvas, { colours, categoryLabels, titles, theme, reducedMotion }) {
+  constructor(canvas, { colours, theme, reducedMotion }) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
     this.theme = theme;
     this.colours = colours;
-    this.categoryLabels = categoryLabels;
-    this.titles = titles;
+    this.categoryLabels = [];
+    this.titles = [];
     this.reducedMotion = reducedMotion;
 
     this.points = [];
@@ -39,15 +39,22 @@ export class TasteMap {
     new ResizeObserver(() => this.resize()).observe(canvas);
   }
 
-  /** Gives the map its video dots and the hidden category of each (used only when revealed). */
-  setVideos(points, categories) {
+  /**
+   * Gives the map its video dots. categories is the hidden category of each
+   * video and categoryLabels names them (both used only when revealed);
+   * titles are shown when a dot is pointed at.
+   */
+  setVideos(points, { categories, categoryLabels, titles }) {
     this.points = points;
     this.categories = categories;
+    this.categoryLabels = categoryLabels;
+    this.titles = titles;
+    this.hovered = -1;
     let furthest = 0;
     for (const point of points) furthest = Math.max(furthest, Math.hypot(point[0], point[1]));
-    this.reach = furthest * 1.15;
+    this.reach = furthest * 1.15 || 1;
 
-    const sums = this.colours.map(() => [0, 0, 0]);
+    const sums = categoryLabels.map(() => [0, 0, 0]);
     points.forEach((point, item) => {
       const sum = sums[categories[item]];
       sum[0] += point[0];

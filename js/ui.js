@@ -1,20 +1,23 @@
-// ui.js: wires the page together.
-// It asks mf.js and linalg.js for every number and hands the results to the
-// feed card (feed.js) and the map (map.js). No model arithmetic happens here.
+// ui.js: wires the whole page together.
+// It asks mf.js, linalg.js and explore.js for every number and hands the
+// results to the feed card (feed.js), the map (map.js) and the chart
+// (lab.js). Training runs in train.worker.js. No model arithmetic happens here.
 
 import {
-  DEFAULT_SETTINGS, UNSEEN, LIKE_AS_WATCH_RATIO, trainALS, foldInUser, scoreItems, bestUnseen, preferenceOf,
-  confidenceOf,
+  DEFAULT_SETTINGS, UNSEEN, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
 } from './mf.js';
-import { principalAxes, projectOntoAxes } from './linalg.js';
+import { principalAxes, projectOntoAxes, procrustes2D, applyMatrix2D } from './linalg.js';
 import { pickEpsilonGreedy, pickThompson, categoryMix } from './explore.js';
+import { neighbourAgreement } from './sim.js';
 import { makeRandom } from './random.js';
-import { loadCrowd } from './data.js';
+import { DEFAULT_CROWD, describeVideos } from './data.js';
 import { TasteMap } from './map.js';
 import { Feed } from './feed.js';
+import { drawErrorChart } from './lab.js';
 
 // The Okabe-Ito palette: eight colours chosen to stay distinct for colour-blind viewers.
 const CATEGORY_COLOURS = ['#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2', '#D55E00', '#CC79A7', '#BBBBBB'];
+const NO_TURN = [[1, 0], [0, 1]];
 const NUDGE_AFTER = 3; // reactions before we point at the reveal switch
 const MAX_EPSILON = 0.5; // "random sometimes" at full strength: every other video is random
 const MAX_SPREAD = 2; // Thompson sampling at full strength: twice the model's real uncertainty
@@ -22,76 +25,162 @@ const RECENT_COUNT = 20; // how many recommendations the bubble meter looks back
 const AUTOPILOT_SWIPES = 30;
 const AUTOPILOT_STEP_MS = 90;
 
-const settings = { ...DEFAULT_SETTINGS };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const find = (id) => document.getElementById(id);
 
+/** Reads one colour from the tokens at the top of style.css, so the canvas and the page cannot drift apart. */
+function cssToken(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+const theme = {
+  dot: cssToken('--color-dot'),
+  you: cssToken('--color-you'),
+  text: cssToken('--color-text'),
+  background: cssToken('--color-background'),
+};
+
 const state = {
-  crowd: null,
+  // the trained model and how it is drawn
+  settings: { ...DEFAULT_SETTINGS }, // the settings the current model was trained with
+  trainedCrowd: '', // which crowd it was trained on, as text, to spot a change
+  jobId: 0, // goes up with every training request; late answers to old requests are ignored
+  errorHistory: [],
+  videos: [],
+  categories: [],
   itemFactors: null,
   itemAppeal: null,
-  axes: null,
+  axes: null, // the two directions of the model's space that the map shows
+  turn: NO_TURN, // the Procrustes rotation that keeps a retrained map facing the same way
+  videoPoints: null,
   userScale: 1,
-  myWatchRatios: null, // one cell per video: UNSEEN, or the watch ratio you gave it
+
+  // you
+  reactions: new Map(), // video index -> { watchRatio, liked }, in the order you reacted
+  shownMarks: null, // one cell per video: UNSEEN, or 1 once it has been on your card
+  evidence: null, // one cell per video: what the model is told (depends on the signal choice)
   foldIn: null, // the latest fold-in result: your vector and how sure the model is of it
   myVector: null,
-  shownOrder: [], // video indexes in the order you saw them
   currentVideo: null,
   recentCategories: [], // hidden categories of the last few recommendations, for the bubble meter
+
+  // lab choices
+  signal: 'both', // 'both', 'likes' or 'watch'
   exploreMode: 'greedy', // 'greedy', 'epsilon' or 'thompson'
   exploreAmount: 0.5, // the slider, from 0 to 1
   random: makeRandom(7),
 };
 
-let tasteMap;
-let feed;
+const tasteMap = new TasteMap(find('map'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
+const feed = new Feed(find('feed'), { onReaction: recordReaction, onNeedNext: dealNextCard, reducedMotion });
+const trainer = new Worker(new URL('./train.worker.js', import.meta.url), { type: 'module' });
+trainer.onmessage = (event) => onTrainerMessage(event.data);
 
-/** Trains the model in this tab, lays out the map and deals the first card. */
-function start() {
-  const crowd = loadCrowd();
-  const began = performance.now();
-  const model = trainALS(crowd.watchRatios, settings);
-  const trainSeconds = (performance.now() - began) / 1000;
+// ---------- training ----------
 
-  state.crowd = crowd;
-  state.itemFactors = model.itemFactors;
-  state.itemAppeal = model.itemAppeal;
-  state.axes = principalAxes(model.itemFactors, 2).axes;
-  state.myWatchRatios = new Float32Array(crowd.videos.length).fill(UNSEEN);
-  refoldUser(); // with no history this gives all zeros: no taste known yet
-
-  const videoPoints = model.itemFactors.map((factor) => projectOntoAxes(factor, state.axes));
-  const crowdPoints = model.userFactors.map((factor) => projectOntoAxes(factor, state.axes));
-  state.userScale = typicalDistance(videoPoints) / typicalDistance(crowdPoints);
-
-  tasteMap = new TasteMap(find('map'), {
-    colours: CATEGORY_COLOURS,
-    categoryLabels: crowd.categories.map((category) => `${category.icon} ${category.name}`),
-    titles: crowd.videos.map((video) => video.title),
-    theme: {
-      dot: cssToken('--color-dot'),
-      you: cssToken('--color-you'),
-      text: cssToken('--color-text'),
-      background: cssToken('--color-background'),
+/** Reads the lab's controls and asks the worker for a model. */
+function requestTraining() {
+  state.jobId += 1;
+  state.errorHistory = [];
+  find('trainButton').disabled = true;
+  find('trainStatus').textContent = 'Training…';
+  trainer.postMessage({
+    jobId: state.jobId,
+    crowdSettings: {
+      ...DEFAULT_CROWD,
+      userCount: Number(find('crowdUsers').value),
+      topicCount: Number(find('crowdTopics').value),
+      noise: Number(find('crowdNoise').value) / 100,
+      sparsity: Number(find('crowdSparsity').value) / 100,
     },
-    reducedMotion,
+    modelSettings: {
+      ...DEFAULT_SETTINGS,
+      factorCount: Number(document.querySelector('input[name="factorCount"]:checked').value),
+    },
   });
-  tasteMap.setVideos(videoPoints, crowd.videos.map((video) => video.category));
-  tasteMap.placeUser(mapPointOf(state.myVector));
+}
 
-  feed = new Feed(find('feed'), { onReaction: recordReaction, onNeedNext: dealNextCard, reducedMotion });
-  find('reveal').addEventListener('change', (event) => setRevealed(event.target.checked));
-  wireExplorationPanel();
+function onTrainerMessage(message) {
+  if (message.jobId !== state.jobId) return; // an answer to a request we have since replaced
+  if (message.type === 'sweep') {
+    state.errorHistory.push(message);
+    find('trainStatus').textContent = `Training: sweep ${message.sweep} of ${DEFAULT_SETTINGS.sweepCount}`;
+    drawErrorChart(find('errorChart'), state.errorHistory, DEFAULT_SETTINGS.sweepCount, theme);
+    return;
+  }
+  showTrainedModel(message);
+}
 
-  const cellCount = (crowd.watchRatios.length * crowd.videos.length).toLocaleString('en');
-  find('mapCaption').textContent =
-    `Every dot is one video. The bright dot is you. The model was trained ${trainSeconds.toFixed(1)} s ago, ` +
-    `in this tab, on ${cellCount} watch times from ${crowd.sourceLabel}, and on nothing else.`;
-  renderVectorPanel();
-  dealNextCard();
-  // Only now is there a model to take apart, so only now do the controls wake up.
+/** Takes a freshly trained model from the worker and puts it on the page. */
+function showTrainedModel(result) {
+  const crowdAsText = JSON.stringify(result.crowdSettings);
+  const sameCrowd = crowdAsText === state.trainedCrowd;
+  state.trainedCrowd = crowdAsText;
+  state.settings = result.modelSettings;
+  state.itemFactors = result.itemFactors;
+  state.itemAppeal = result.itemAppeal;
+
+  // Flatten the video vectors to 2-D. If these are the same videos as before,
+  // turn the new layout to face the same way as the old one.
+  state.axes = principalAxes(result.itemFactors, 2).axes;
+  let points = result.itemFactors.map((factor) => projectOntoAxes(factor, state.axes));
+  state.turn = sameCrowd && state.videoPoints ? procrustes2D(points, state.videoPoints) : NO_TURN;
+  points = points.map((point) => applyMatrix2D(state.turn, point));
+  state.videoPoints = points;
+  const crowdPoints = result.userFactors.map((factor) => projectOntoAxes(factor, state.axes));
+  state.userScale = typicalDistance(points) / typicalDistance(crowdPoints);
+
+  if (!sameCrowd) {
+    const described = describeVideos(result.itemTopics, result.crowdSettings.topicCount);
+    state.videos = described.videos;
+    state.categories = described.categories;
+    fillTopicPicker();
+  }
+  tasteMap.setVideos(points, {
+    categories: state.videos.map((video) => video.category),
+    categoryLabels: state.categories.map((category) => `${category.icon} ${category.name}`),
+    titles: state.videos.map((video) => video.title),
+  });
+
+  if (sameCrowd) { // same videos, new model: keep your history and work out your vector again
+    rebuildEvidence();
+    tasteMap.placeUser(mapPointOf(state.myVector));
+    renderVectorPanel();
+  } else {
+    forgetPerson();
+    dealNextCard();
+  }
+  describeTraining(result);
+  find('trainButton').disabled = false;
   find('reveal').disabled = false;
   find('lab').hidden = false;
+  drawErrorChart(find('errorChart'), state.errorHistory, DEFAULT_SETTINGS.sweepCount, theme);
+}
+
+/** Writes the captions that report what was just trained and how well it did. */
+function describeTraining(result) {
+  const crowd = result.crowdSettings;
+  const size = result.modelSettings.factorCount;
+  for (const node of document.querySelectorAll('.factor-count')) node.textContent = String(size);
+
+  find('mapCaption').textContent =
+    `Every dot is one video. The bright dot is you. The model was trained in ${result.seconds.toFixed(1)} s, ` +
+    `in this tab, on ${result.trainedCells.toLocaleString('en')} watch times from a simulated crowd of ` +
+    `${crowd.userCount.toLocaleString('en')} people and ${crowd.itemCount} videos, and on nothing else.`;
+  find('trainStatus').textContent = `Trained in ${result.seconds.toFixed(1)} s.`;
+
+  const last = state.errorHistory[state.errorHistory.length - 1];
+  find('errorText').textContent =
+    `After the last sweep the model's average squared miss was ${last.trainingError.toFixed(3)} on cells it trained on ` +
+    `and ${last.heldOutError.toFixed(3)} on the ${result.hiddenCells.toLocaleString('en')} cells hidden from it. ` +
+    'A large gap means it has memorised noise.';
+
+  const topics = state.videos.map((video) => video.category);
+  const inModel = Math.round(100 * neighbourAgreement(state.itemFactors, topics));
+  const onMap = Math.round(100 * neighbourAgreement(state.videoPoints, topics));
+  find('recoveryText').textContent =
+    `A video's nearest neighbour shares its hidden topic ${inModel}% of the time in the model's ${size} dimensions ` +
+    `and ${onMap}% of the time on the flat map. Guessing would score about ${Math.round(100 / crowd.topicCount)}%.`;
 }
 
 /**
@@ -102,58 +191,91 @@ function start() {
 function typicalDistance(points) {
   let total = 0;
   for (const point of points) total += point[0] * point[0] + point[1] * point[1];
-  return Math.sqrt(total / points.length);
-}
-
-/** Reads one colour from the tokens at the top of style.css, so the canvas and the page cannot drift apart. */
-function cssToken(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return Math.sqrt(total / points.length) || 1;
 }
 
 function mapPointOf(userVector) {
-  const flat = projectOntoAxes(userVector, state.axes);
+  const flat = applyMatrix2D(state.turn, projectOntoAxes(userVector, state.axes));
   return [flat[0] * state.userScale, flat[1] * state.userScale];
+}
+
+// ---------- you: reactions, evidence, fold-in ----------
+
+/** What the model is told about one reaction, given the signal choice. UNSEEN means "nothing". */
+function evidenceFrom(reaction) {
+  if (state.signal === 'likes') return reaction.liked ? LIKE_AS_WATCH_RATIO : UNSEEN;
+  if (state.signal === 'watch') return reaction.watchRatio;
+  return reaction.liked ? LIKE_AS_WATCH_RATIO : reaction.watchRatio;
+}
+
+/** Solves your vector again from the evidence so far. */
+function refoldUser() {
+  state.foldIn = foldInUser(state.itemFactors, state.itemAppeal, state.evidence, state.settings);
+  state.myVector = state.foldIn.vector;
+}
+
+/** Re-reads every reaction under the current signal choice and solves your vector again. */
+function rebuildEvidence() {
+  state.evidence.fill(UNSEEN);
+  for (const [item, reaction] of state.reactions) {
+    state.evidence[item] = evidenceFrom(reaction);
+    tasteMap.markShown(item, preferenceOf(state.evidence[item], state.settings) === 1);
+  }
+  refoldUser();
+}
+
+/** Forgets everything you did, as if a brand-new person had opened the feed. */
+function forgetPerson() {
+  state.reactions.clear();
+  state.shownMarks = new Float32Array(state.videos.length).fill(UNSEEN);
+  state.evidence = new Float32Array(state.videos.length).fill(UNSEEN);
+  state.recentCategories = [];
+  refoldUser(); // with no evidence this gives all zeros: no taste known yet
+  tasteMap.forgetUser(mapPointOf(state.myVector));
+  renderVectorPanel();
 }
 
 /** Called once per card. This is the whole of what the model learns about you. */
 function recordReaction(video, watchRatio, liked) {
-  const ratio = liked ? LIKE_AS_WATCH_RATIO : watchRatio;
-  state.myWatchRatios[video.index] = ratio;
-  state.shownOrder.push(video.index);
+  const reaction = { watchRatio, liked };
+  state.reactions.set(video.index, reaction);
+  state.shownMarks[video.index] = 1;
+  const told = evidenceFrom(reaction);
+  state.evidence[video.index] = told;
   refoldUser();
 
-  const readAsYes = preferenceOf(ratio, settings) === 1;
+  const readAsYes = preferenceOf(told, state.settings) === 1;
   tasteMap.markShown(video.index, readAsYes);
   tasteMap.moveUser(mapPointOf(state.myVector));
   find('map').setAttribute('aria-label',
-    `Taste map of ${state.crowd.videos.length} videos. Your dot has moved ${state.shownOrder.length} times.`);
+    `Taste map of ${state.videos.length} videos. Your dot has moved ${state.reactions.size} times.`);
 
-  const told = liked ? 'liked' : `watched ${Math.round(watchRatio * 100)}%`;
-  const verdict = liked ? 'a firm yes' : readAsYes ? 'a yes' : watchRatio < 0.2 ? 'a firm no' : 'a no';
-  find('reading').textContent =
-    `All the model was told: video ${video.index + 1}, ${told}. It reads that as ${verdict} and moves you.`;
-
+  if (told === UNSEEN) {
+    find('reading').textContent =
+      `The model was told nothing about video ${video.index + 1}: it is set to learn from likes only.`;
+  } else {
+    const what = told === LIKE_AS_WATCH_RATIO ? 'liked' : `watched ${Math.round(watchRatio * 100)}%`;
+    const verdict = told === LIKE_AS_WATCH_RATIO ? 'a firm yes' : readAsYes ? 'a yes' : told < 0.2 ? 'a firm no' : 'a no';
+    find('reading').textContent =
+      `All the model was told: video ${video.index + 1}, ${what}. It reads that as ${verdict} and moves you.`;
+  }
   renderVectorPanel();
-  if (state.shownOrder.length === NUDGE_AFTER && !find('reveal').checked) find('revealLabel').classList.add('nudge');
+  if (state.reactions.size === NUDGE_AFTER && !find('reveal').checked) find('revealLabel').classList.add('nudge');
 }
 
-/** Solves your vector again from everything you have reacted to so far. */
-function refoldUser() {
-  state.foldIn = foldInUser(state.itemFactors, state.itemAppeal, state.myWatchRatios, settings);
-  state.myVector = state.foldIn.vector;
-}
+// ---------- the feed ----------
 
 /** Chooses the next video with whichever rule the exploration panel is set to. */
 function chooseNextVideo() {
   if (state.exploreMode === 'thompson') {
     const spread = MAX_SPREAD * state.exploreAmount;
-    return pickThompson(state.foldIn, state.itemFactors, state.itemAppeal, state.myWatchRatios, spread, state.random);
+    return pickThompson(state.foldIn, state.itemFactors, state.itemAppeal, state.shownMarks, spread, state.random);
   }
   const scores = scoreItems(state.myVector, state.itemFactors, state.itemAppeal);
   if (state.exploreMode === 'epsilon') {
-    return pickEpsilonGreedy(scores, state.myWatchRatios, MAX_EPSILON * state.exploreAmount, state.random);
+    return pickEpsilonGreedy(scores, state.shownMarks, MAX_EPSILON * state.exploreAmount, state.random);
   }
-  return bestUnseen(scores, state.myWatchRatios);
+  return bestUnseen(scores, state.shownMarks);
 }
 
 /** Puts the chosen video on the card and points at it on the map. */
@@ -165,55 +287,13 @@ function dealNextCard() {
     tasteMap.setTarget(-1);
     return;
   }
-  const video = state.crowd.videos[item];
+  const video = state.videos[item];
   state.currentVideo = video;
   state.recentCategories.push(video.category);
   if (state.recentCategories.length > RECENT_COUNT) state.recentCategories.shift();
-  feed.show(video, CATEGORY_COLOURS[video.category], state.crowd.categories[video.category].icon);
+  feed.show(video, CATEGORY_COLOURS[video.category], state.categories[video.category].icon);
   tasteMap.setTarget(item);
   renderBubbleMeter();
-}
-
-/** Shows how varied your recent recommendations were: 0% is a sealed bubble. */
-function renderBubbleMeter() {
-  const mix = categoryMix(state.recentCategories, state.crowd.categories.length);
-  const percent = Math.round(mix * 100);
-  find('bubbleFill').style.width = `${percent}%`;
-  const verdict = mix < 0.3 ? 'A bubble: nearly everything is one topic.'
-    : mix < 0.65 ? 'Narrowing: a few topics dominate.'
-      : 'Varied: many topics are getting through.';
-  find('bubbleText').textContent =
-    `Variety of your last ${state.recentCategories.length} recommendations: ${percent}%. ${verdict}`;
-}
-
-/** Connects the exploration panel's controls to the feed. */
-function wireExplorationPanel() {
-  for (const radio of document.querySelectorAll('input[name="explore"]')) {
-    radio.addEventListener('change', () => {
-      state.exploreMode = radio.value;
-      renderExploreAmount();
-    });
-  }
-  find('exploreAmount').addEventListener('input', (event) => {
-    state.exploreAmount = Number(event.target.value) / 100;
-    renderExploreAmount();
-  });
-  const topicPicker = find('autopilotTopic');
-  state.crowd.categories.forEach((category, index) => {
-    const option = make('option', '', `${category.icon} ${category.name}`);
-    option.value = String(index);
-    topicPicker.append(option);
-  });
-  find('autopilotButton').addEventListener('click', () => runAutopilot(Number(topicPicker.value), AUTOPILOT_SWIPES));
-  find('resetButton').addEventListener('click', startAgain);
-  renderExploreAmount();
-}
-
-function renderExploreAmount() {
-  find('exploreAmountRow').hidden = state.exploreMode === 'greedy';
-  find('exploreAmountText').textContent = state.exploreMode === 'epsilon'
-    ? `${Math.round(MAX_EPSILON * state.exploreAmount * 100)}% of videos are picked at random`
-    : `sampling at ${(MAX_SPREAD * state.exploreAmount).toFixed(1)} times the model's own uncertainty`;
 }
 
 /**
@@ -224,28 +304,42 @@ function renderExploreAmount() {
 function runAutopilot(likedCategory, swipesLeft) {
   if (swipesLeft === 0 || !state.currentVideo) return;
   const video = state.currentVideo;
-  const liked = video.category === likedCategory;
-  recordReaction(video, 0.1, liked);
+  recordReaction(video, 0.1, video.category === likedCategory);
   dealNextCard();
   setTimeout(() => runAutopilot(likedCategory, swipesLeft - 1), reducedMotion ? 0 : AUTOPILOT_STEP_MS);
 }
 
-/** Forgets everything you did, as if a brand-new person had opened the feed. */
 function startAgain() {
-  state.myWatchRatios.fill(UNSEEN);
-  state.shownOrder = [];
-  state.recentCategories = [];
-  refoldUser();
-  tasteMap.forgetUser(mapPointOf(state.myVector));
+  forgetPerson();
   find('reading').textContent = 'Started again as a brand-new person.';
-  renderVectorPanel();
   dealNextCard();
 }
+
+// ---------- drawing the panels ----------
 
 function setRevealed(revealed) {
   tasteMap.setRevealed(revealed);
   find('revealLabel').classList.remove('nudge');
   find('revealNote').hidden = !revealed;
+}
+
+/** Shows how varied your recent recommendations were: 0% is a sealed bubble. */
+function renderBubbleMeter() {
+  const mix = categoryMix(state.recentCategories, state.categories.length);
+  const percent = Math.round(mix * 100);
+  find('bubbleFill').style.width = `${percent}%`;
+  const verdict = mix < 0.3 ? 'A bubble: nearly everything is one topic.'
+    : mix < 0.65 ? 'Narrowing: a few topics dominate.'
+      : 'Varied: many topics are getting through.';
+  find('bubbleText').textContent =
+    `Variety of your last ${state.recentCategories.length} recommendations: ${percent}%. ${verdict}`;
+}
+
+function renderExploreAmount() {
+  find('exploreAmountRow').hidden = state.exploreMode === 'greedy';
+  find('exploreAmountText').textContent = state.exploreMode === 'epsilon'
+    ? `${Math.round(MAX_EPSILON * state.exploreAmount * 100)}% of videos are picked at random`
+    : `sampling at ${(MAX_SPREAD * state.exploreAmount).toFixed(1)} times the model's own uncertainty`;
 }
 
 /** Fills the "Your vector" panel with the real numbers behind the map. */
@@ -267,26 +361,40 @@ function renderVectorPanel() {
 
   const evidence = find('evidenceRows');
   evidence.replaceChildren();
-  for (const item of state.shownOrder.slice(-8).reverse()) {
-    const ratio = state.myWatchRatios[item];
+  for (const item of [...state.reactions.keys()].slice(-8).reverse()) {
+    const ratio = state.evidence[item];
     const row = make('tr');
-    row.append(
-      make('td', '', `video ${item + 1}`),
-      make('td', '', ratio === LIKE_AS_WATCH_RATIO ? 'liked (counts as 2.00)' : ratio.toFixed(2)),
-      make('td', '', preferenceOf(ratio, settings) === 1 ? 'yes (1)' : 'no (0)'),
-      make('td', '', confidenceOf(ratio, settings).toFixed(1)),
-    );
+    if (ratio === UNSEEN) {
+      row.append(make('td', '', `video ${item + 1}`), make('td', '', 'not counted'), make('td', '', '–'), make('td', '', '0'));
+    } else {
+      row.append(
+        make('td', '', `video ${item + 1}`),
+        make('td', '', ratio === LIKE_AS_WATCH_RATIO ? 'liked (counts as 2.00)' : ratio.toFixed(2)),
+        make('td', '', preferenceOf(ratio, state.settings) === 1 ? 'yes (1)' : 'no (0)'),
+        make('td', '', confidenceOf(ratio, state.settings).toFixed(1)),
+      );
+    }
     evidence.append(row);
   }
-  find('evidenceEmpty').hidden = state.shownOrder.length > 0;
+  find('evidenceEmpty').hidden = state.reactions.size > 0;
 
   const scores = scoreItems(state.myVector, state.itemFactors, state.itemAppeal);
   const unseen = [];
-  for (let item = 0; item < scores.length; item++) if (state.myWatchRatios[item] === UNSEEN) unseen.push(item);
+  for (let item = 0; item < scores.length; item++) if (state.shownMarks[item] === UNSEEN) unseen.push(item);
   unseen.sort((a, b) => scores[b] - scores[a]);
   const upNext = find('upNext');
   upNext.replaceChildren();
   for (const item of unseen.slice(0, 5)) upNext.append(make('li', '', `video ${item + 1}: score ${scores[item].toFixed(2)}`));
+}
+
+function fillTopicPicker() {
+  const picker = find('autopilotTopic');
+  picker.replaceChildren();
+  state.categories.forEach((category, index) => {
+    const option = make('option', '', `${category.icon} ${category.name}`);
+    option.value = String(index);
+    picker.append(option);
+  });
 }
 
 function make(tag, className = '', text = '') {
@@ -296,5 +404,51 @@ function make(tag, className = '', text = '') {
   return node;
 }
 
-// Let the browser paint the empty page first, then train.
-requestAnimationFrame(() => setTimeout(start, 0));
+// ---------- connecting the controls ----------
+
+/** Shows a slider's current value in words next to it. */
+function describeSliders() {
+  find('crowdUsersText').textContent = `${Number(find('crowdUsers').value).toLocaleString('en')} people`;
+  find('crowdTopicsText').textContent = `${find('crowdTopics').value} hidden topics`;
+  find('crowdNoiseText').textContent = `${find('crowdNoise').value}% noise in each watch time`;
+  find('crowdSparsityText').textContent = `each person never saw ${find('crowdSparsity').value}% of the videos`;
+}
+
+function wireControls() {
+  find('reveal').addEventListener('change', (event) => setRevealed(event.target.checked));
+
+  for (const radio of document.querySelectorAll('input[name="explore"]')) {
+    radio.addEventListener('change', () => {
+      state.exploreMode = radio.value;
+      renderExploreAmount();
+    });
+  }
+  find('exploreAmount').addEventListener('input', (event) => {
+    state.exploreAmount = Number(event.target.value) / 100;
+    renderExploreAmount();
+  });
+  find('autopilotButton').addEventListener('click', () => runAutopilot(Number(find('autopilotTopic').value), AUTOPILOT_SWIPES));
+  find('resetButton').addEventListener('click', startAgain);
+
+  for (const radio of document.querySelectorAll('input[name="signal"]')) {
+    radio.addEventListener('change', () => {
+      state.signal = radio.value;
+      rebuildEvidence();
+      tasteMap.moveUser(mapPointOf(state.myVector));
+      renderVectorPanel();
+    });
+  }
+
+  for (const id of ['crowdUsers', 'crowdTopics', 'crowdNoise', 'crowdSparsity']) {
+    find(id).addEventListener('input', describeSliders);
+  }
+  find('trainButton').addEventListener('click', requestTraining);
+  find('labPanel').addEventListener('toggle', () =>
+    drawErrorChart(find('errorChart'), state.errorHistory, DEFAULT_SETTINGS.sweepCount, theme));
+
+  describeSliders();
+  renderExploreAmount();
+}
+
+wireControls();
+requestTraining();

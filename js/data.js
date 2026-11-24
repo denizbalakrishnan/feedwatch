@@ -1,16 +1,13 @@
-// data.js: hands the page its crowd.
+// data.js: what a human sees for each video.
 //
-// For now the crowd is simulated (see sim.js). When the real KuaiRec
-// subsample is ready, this file will fetch that instead and nothing else has
-// to change: the rest of the page relies only on the shape loadCrowd() returns.
-//
-// Everything a human sees on a card (title, icon) is made up here. None of it
-// is ever passed to the model, which receives the watch-ratio grid alone.
+// Everything on a card (title, icon, length) is made up here from the
+// video's hidden topic. None of it is ever passed to the model, which
+// receives the watch-ratio grid alone.
 
-import { simulateCrowd, TOPIC_NAMES } from './sim.js';
+import { TOPIC_NAMES } from './sim.js';
 
-/** Size and seed of the crowd on the main screen. */
-export const MAIN_CROWD = { userCount: 300, itemCount: 480, topicCount: 8, noise: 0.25, sparsity: 0, seed: 2 };
+/** The crowd the page opens with. The lab's sliders change these. */
+export const DEFAULT_CROWD = { userCount: 300, itemCount: 480, topicCount: 8, noise: 0.25, sparsity: 0, seed: 2 };
 
 const TOPIC_ICONS = ['💃', '🎵', '😂', '🎮', '⚽', '✈️', '🍳', '🔨', '🐾', '💄'];
 
@@ -28,23 +25,21 @@ const TITLE_STEMS = [
 ];
 
 /**
- * Returns the crowd the page runs on:
- *   watchRatios  the grid the model is trained on (people x videos)
- *   videos       what a human sees for each video: a made-up title, a length
- *                in seconds and the hidden category used only by the reveal
- *   categories   a name and icon for each hidden category
+ * Turns the simulator's hidden topics into things a person can look at:
+ *   videos      for each video a made-up title, a length in seconds and its
+ *               hidden category (used only by the reveal)
+ *   categories  a name and an icon for each hidden category
  */
-export function loadCrowd() {
-  const crowd = simulateCrowd(MAIN_CROWD);
+export function describeVideos(itemTopics, topicCount) {
   const categories = [];
-  for (let topic = 0; topic < MAIN_CROWD.topicCount; topic++) {
+  for (let topic = 0; topic < topicCount; topic++) {
     categories.push({ name: TOPIC_NAMES[topic], icon: TOPIC_ICONS[topic] });
   }
   const videos = [];
-  for (let item = 0; item < MAIN_CROWD.itemCount; item++) {
-    const category = crowd.itemTopics[item];
+  for (let item = 0; item < itemTopics.length; item++) {
+    const category = itemTopics[item];
     const stems = TITLE_STEMS[category];
-    const round = Math.floor(item / MAIN_CROWD.topicCount);
+    const round = Math.floor(item / topicCount);
     videos.push({
       index: item,
       category,
@@ -52,10 +47,5 @@ export function loadCrowd() {
       seconds: 3 + (round % 3),
     });
   }
-  return {
-    sourceLabel: `a simulated crowd of ${MAIN_CROWD.userCount} people and ${MAIN_CROWD.itemCount} videos`,
-    watchRatios: crowd.watchRatios,
-    videos,
-    categories,
-  };
+  return { videos, categories };
 }
