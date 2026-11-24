@@ -6,7 +6,21 @@
   <title>The feed that never watched a video</title>
   <meta name="description" content="A working recommendation feed you can take apart. It has never watched a single video: it places you and every video on a hidden taste map learned only from who watched what.">
   <meta name="theme-color" content="#0d1220">
+  <!-- The tab icon is drawn right here, so the browser does not go looking for a favicon file. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1220'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffd84d'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
+  <!-- Ask for every script at once instead of discovering them one import at a time. -->
+  <link rel="modulepreload" href="js/ui.js">
+  <link rel="modulepreload" href="js/mf.js">
+  <link rel="modulepreload" href="js/linalg.js">
+  <link rel="modulepreload" href="js/explore.js">
+  <link rel="modulepreload" href="js/twotower.js">
+  <link rel="modulepreload" href="js/sim.js">
+  <link rel="modulepreload" href="js/random.js">
+  <link rel="modulepreload" href="js/data.js">
+  <link rel="modulepreload" href="js/map.js">
+  <link rel="modulepreload" href="js/feed.js">
+  <link rel="modulepreload" href="js/lab.js">
 </head>
 <body>
   <!-- Our own three icons, drawn once here and reused with <use>. -->
@@ -20,28 +34,32 @@
     <symbol id="icon-up" viewBox="0 0 24 24">
       <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/>
     </symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M8 5v14l11-7z"/>
+    </symbol>
   </svg>
 
   <div class="page">
     <header class="hero">
       <h1>This feed has never watched a single video.</h1>
-      <p>Like a few. Skip the rest. Watch where you go.</p>
+      <p>It only knows who watched what. Like a few, skip the rest, and watch your dot move.</p>
     </header>
 
     <main class="stage">
       <section class="feed" id="feed" aria-labelledby="feedHeading">
         <h2 class="visually-hidden" id="feedHeading">Video feed</h2>
         <div class="card" id="card" tabindex="0" role="group"
-             aria-label="Video card. Swipe up or press the down arrow for the next video. Press L to like.">
+             aria-label="Video card. Press Enter to watch it, the down arrow for the next video, or L to like.">
           <div class="card-face loading" id="cardFace">
             <div class="card-icon" id="cardIcon" aria-hidden="true"></div>
-            <svg class="card-heart" id="cardHeart" aria-hidden="true"><use href="#icon-heart"/></svg>
+            <button type="button" class="card-heart" id="cardHeart" aria-label="Like this video"><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg></button>
             <div class="swipe-hint" id="swipeHint" aria-hidden="true">
               <svg class="icon"><use href="#icon-up"/></svg> swipe up to skip
             </div>
             <div class="card-strip">
               <div class="card-title" id="cardTitle">Training the model…</div>
               <div class="card-watch">
+                <svg class="card-play" aria-hidden="true"><use href="#icon-play"/></svg>
                 <div class="watch-track"><div class="watch-fill" id="watchFill"></div></div>
                 <span id="watchText"></span>
               </div>
@@ -49,10 +67,10 @@
           </div>
         </div>
         <div class="feed-buttons">
-          <button type="button" id="nextButton" disabled>Next <svg class="icon" aria-hidden="true"><use href="#icon-down"/></svg></button>
+          <button type="button" id="nextButton" disabled>Next <svg class="icon" aria-hidden="true"><use href="#icon-up"/></svg></button>
           <button type="button" id="likeButton" class="like" disabled><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg> Like</button>
         </div>
-        <p class="reading" id="reading" aria-live="polite"></p>
+        <p class="reading" id="reading" aria-live="polite">Nothing has been sent to the model yet.</p>
       </section>
 
       <section class="map-panel" aria-labelledby="mapHeading">
@@ -62,9 +80,7 @@
           <span>Reveal what the model never saw</span>
         </label>
         <canvas id="map" role="img" aria-label="Taste map. Every dot is a video and the bright dot is you."></canvas>
-        <p class="reveal-note" id="revealNote" hidden>
-          These colours are the videos' topics. The model was never given them. It grouped the videos using only who watched what.
-        </p>
+        <p class="reveal-note" id="revealNote">Every dot is one video. The bright dot is you. The dashed line points at the video on the card.</p>
         <p class="map-caption" id="mapCaption">Training the model in your browser…</p>
       </section>
     </main>
@@ -82,7 +98,7 @@
               <label><input type="radio" name="explore" value="epsilon">
                 <span><strong>Random sometimes.</strong> Now and then, play any video at all.</span></label>
               <label><input type="radio" name="explore" value="thompson">
-                <span><strong>Thompson sampling.</strong> Play the best video for a slightly different you, drawn from what the model is still unsure about.</span></label>
+                <span><strong>Explore where unsure.</strong> Play the best video for a slightly different you, drawn from what the model is still unsure about. (This is called Thompson sampling.)</span></label>
             </fieldset>
             <label class="slider" id="exploreAmountRow" hidden>
               <span>How much</span>
@@ -91,15 +107,16 @@
             </label>
           </div>
           <div>
+            <p class="meter-label" id="bubbleText" aria-live="polite"></p>
             <div class="meter" aria-hidden="true"><div class="meter-fill" id="bubbleFill"></div></div>
-            <p id="bubbleText" aria-live="polite"></p>
-            <p>Swiping 30 times by hand is slow, so let a pretend viewer do it. They like one topic and skip the rest. Watch the map and the meter, then start again with exploration switched on.</p>
+            <p>Swiping 30 times by hand is slow, so let a pretend viewer do it. They are a brand-new person who likes one topic and skips the rest. Run it once with exploration off and once with it on, and compare.</p>
             <div class="inline-controls">
-              <label for="autopilotTopic">Fast-forward 30 swipes by a fan of</label>
+              <label for="autopilotTopic">A new fan of</label>
               <select id="autopilotTopic"></select>
-              <button type="button" id="autopilotButton">Go</button>
+              <button type="button" id="autopilotButton">Run 30 swipes</button>
               <button type="button" id="resetButton">Start again as a new person</button>
             </div>
+            <p id="autopilotText" aria-live="polite"></p>
           </div>
         </div>
       </details>
@@ -182,7 +199,7 @@
               <div><h4>First model</h4><ol id="firstTop"></ol></div>
               <div><h4>Two-tower model</h4><ol id="towerTop"></ol></div>
             </div>
-            <h3>Both models, marked on the same hidden cells</h3>
+            <h3>Both models, marked on watch times they never trained on</h3>
             <p id="precisionText"></p>
           </div>
         </div>
@@ -220,6 +237,7 @@
               <thead><tr><th>Video</th><th>Watch ratio</th><th>Read as</th><th>Weight</th></tr></thead>
               <tbody id="evidenceRows"></tbody>
             </table>
+            <p class="map-caption">Your last 8 reactions. "Weight" is how firmly a row counts: the further the watch ratio is from the 0.70 line between yes and no, the more it counts.</p>
             <h3>Top of your feed right now</h3>
             <ol id="upNext"></ol>
           </div>

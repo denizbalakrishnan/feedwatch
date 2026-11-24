@@ -60,7 +60,9 @@ test('Thompson sampling homes in on greedy as the spread shrinks', () => {
 });
 
 test('sampled vectors are spread exactly as the inverse of the precision matrix says', () => {
-  const { foldIn } = smallWorld();
+  // A deliberately lopsided L, so that solving the wrong triangular system
+  // (L instead of L-transpose) would give a clearly different spread.
+  const foldIn = { vector: Float64Array.of(0.3, -0.2), lower: [Float64Array.of(1, 0), Float64Array.of(2, 0.5)] };
   // Rebuild precision = L L-transpose and invert the 2x2 by hand.
   const L = foldIn.lower;
   const a = L[0][0] * L[0][0];
@@ -68,6 +70,9 @@ test('sampled vectors are spread exactly as the inverse of the precision matrix 
   const d = L[1][0] * L[1][0] + L[1][1] * L[1][1];
   const determinant = a * d - b * b;
   const expected = [[d / determinant, -b / determinant], [-b / determinant, a / determinant]];
+  // What the wrong solve would give: the inverse of L-transpose L. It must be far from the right answer.
+  const wrongTopLeft = (L[1][1] * L[1][1]) / determinant;
+  assert.ok(Math.abs(wrongTopLeft - expected[0][0]) > 1, 'the fixture must be able to tell the two apart');
 
   const random = makeRandom(11);
   const sums = [[0, 0], [0, 0]];

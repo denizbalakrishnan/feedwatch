@@ -93,6 +93,11 @@ function trainSecondModel(jobId, crowd, split, firstModel, modelSettings, seed) 
 
   let hiddenYes = 0;
   for (const [, , ratio] of split.heldOut) hiddenYes += preferenceOf(ratio, modelSettings);
+  const firstMark = precisionAtTop(split.heldOut,
+    (user, item) => firstModel.itemAppeal[item] + dot(firstModel.userFactors[user], firstModel.itemFactors[item]),
+    modelSettings, TOP_COUNT);
+  const towerMark = precisionAtTop(split.heldOut,
+    (user, item) => dot(userVectors[user], itemVectors[item]), modelSettings, TOP_COUNT);
 
   self.postMessage({
     type: 'tower',
@@ -104,10 +109,8 @@ function trainSecondModel(jobId, crowd, split, firstModel, modelSettings, seed) 
     userVectors,
     topCount: TOP_COUNT,
     yesShare: split.heldOut.length ? hiddenYes / split.heldOut.length : 0,
-    firstPrecision: precisionAtTop(split.heldOut,
-      (user, item) => firstModel.itemAppeal[item] + dot(firstModel.userFactors[user], firstModel.itemFactors[item]),
-      modelSettings, TOP_COUNT),
-    towerPrecision: precisionAtTop(split.heldOut,
-      (user, item) => dot(userVectors[user], itemVectors[item]), modelSettings, TOP_COUNT),
+    peopleMarked: firstMark.peopleMarked, // the same people for both models
+    firstPrecision: firstMark.share, // null when nobody had enough hidden videos
+    towerPrecision: towerMark.share,
   });
 }

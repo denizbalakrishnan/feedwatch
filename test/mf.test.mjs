@@ -154,9 +154,10 @@ test('precisionAtTop counts how many of each person\'s top hidden videos were re
   const heldOut = [[0, 10, 1.5], [0, 11, 0.1], [0, 12, 0.9], [0, 13, 0.2], [1, 10, 1.0]];
   const perfect = (user, item) => ({ 10: 9, 11: 1, 12: 8, 13: 2 })[item];
   const backwards = (user, item) => -perfect(user, item);
-  assert.equal(precisionAtTop(heldOut, perfect, settings, 2), 1);
-  assert.equal(precisionAtTop(heldOut, backwards, settings, 2), 0);
-  assert.equal(precisionAtTop([], perfect, settings, 2), 0);
+  assert.deepEqual(precisionAtTop(heldOut, perfect, settings, 2), { share: 1, peopleMarked: 1 });
+  assert.deepEqual(precisionAtTop(heldOut, backwards, settings, 2), { share: 0, peopleMarked: 1 });
+  // Nobody has five hidden videos, so there is no score at all, which is not the same as a score of 0.
+  assert.deepEqual(precisionAtTop(heldOut, perfect, settings, 5), { share: null, peopleMarked: 0 });
 });
 
 test('scoreItems is appeal plus the dot product with every video', () => {

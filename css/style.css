@@ -124,14 +124,23 @@ body {
 
 .card-heart {
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  width: 34px;
-  height: 34px;
-  color: rgba(255, 255, 255, 0.45);
+  top: var(--space-1);
+  right: var(--space-1);
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.8);
   transition: transform var(--motion-medium) ease-out, color var(--motion-fast) ease-out;
 }
-.card-heart.on { color: var(--color-like-bright); transform: scale(1.35); }
+.card-heart .icon { width: 26px; height: 26px; }
+.card-heart.on { color: var(--color-like-bright); transform: scale(1.2); }
+
+/* the play sign beside the watch bar is bright while the video is paused and dim while it plays */
+.card-play { width: 18px; height: 18px; flex: none; color: #fff; transition: opacity var(--motion-fast) ease-out; }
+.card.playing .card-play { opacity: 0.35; }
 
 .swipe-hint {
   position: absolute;
@@ -214,7 +223,8 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
 .reveal.nudge { border-color: var(--color-you); background: rgba(255, 216, 77, 0.12); animation: nudge 1.4s ease-in-out 3; }
 @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 216, 77, 0.55); } 50% { box-shadow: 0 0 0 10px rgba(255, 216, 77, 0); } }
 
-.reveal-note { margin: var(--space-2) var(--space-1) 0; font-weight: 600; }
+.reveal-note { min-height: 3em; margin: var(--space-2) var(--space-1) 0; font-weight: 600; } /* room for two lines, so revealing does not push the page down */
+.meter-label { min-height: 3em; }
 .map-caption { margin: var(--space-2) var(--space-1) 2px; color: var(--color-text-muted); font-size: 0.88rem; }
 
 /* ---------- below the fold: the take-apart lab ---------- */
@@ -243,7 +253,7 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
 .choices.sideways input { margin: 0; }
 
 #errorChart { display: block; width: 100%; height: 180px; }
-#towerMap, #realMap { display: block; width: 100%; height: 320px; }
+#towerMap, #realMap { display: block; width: 100%; height: 360px; }
 
 .legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0; padding: 0; list-style: none; font-size: 0.88rem; }
 .legend li { display: flex; align-items: center; gap: var(--space-2); }
@@ -298,12 +308,13 @@ select {
   .card { height: clamp(180px, 25vh, 250px); min-height: 0; border-radius: 20px; }
   .card-icon { font-size: clamp(3rem, 9vh, 4.5rem); }
   .feed-buttons { margin-top: var(--space-2); }
-  .reading { min-height: 2.8em; margin-top: var(--space-2); font-size: 0.85rem; }
+  .reading { min-height: 4.2em; margin-top: var(--space-2); font-size: 0.85rem; }
+  .reveal-note { min-height: 4.5em; }
   #map { height: clamp(230px, 34vh, 320px); min-height: 0; }
   .panel-body { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .card-face.entering, .card-face.loading, .reveal.nudge, .swipe-hint { animation: none; }
-  .card-heart, button, .vector-fill, .panel summary::before { transition: none; }
+  .card-heart, .card-play, button, .vector-fill, .panel summary::before { transition: none; }
 }

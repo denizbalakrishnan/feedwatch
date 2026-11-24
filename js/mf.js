@@ -1,10 +1,16 @@
 // mf.js: the mechanism. Matrix factorisation for implicit feedback, trained
 // with alternating least squares (ALS).
 //
-// The preference/confidence idea and ALS come from Hu, Koren & Volinsky
-// (2008), "Collaborative Filtering for Implicit Feedback Datasets". The
-// per-video "appeal" number (a bias term) comes from Koren, Bell & Volinsky
-// (2009), "Matrix Factorization Techniques for Recommender Systems".
+// The idea of turning each observation into a preference and a confidence,
+// and training by ALS, comes from Hu, Koren & Volinsky (2008), "Collaborative
+// Filtering for Implicit Feedback Datasets". Our formulas for the two are our
+// own (see preferenceOf and confidenceOf), because we have watch ratios for
+// videos people were shown, where the paper had counts and no "not shown".
+// The per-video "appeal" number (a bias term) is from Koren, Bell & Volinsky
+// (2009), "Matrix Factorization Techniques for Recommender Systems". That
+// paper also has an overall average and a per-person bias; we keep only the
+// per-video one, because adding the same constant to all of one person's
+// scores cannot change the order of that person's feed.
 //
 // The only input is a grid of watch ratios: one row per person, one column
 // per video, each cell = time watched / video length. The model never sees a
@@ -14,8 +20,8 @@
 // so that   appeal + person . video   is close to 1 when that person would
 // watch that video and close to 0 when they would not.
 //
-// Notation used in the comments, matching the papers:
-//   k      number of entries in each vector (factorCount)
+// Notation used in the comments:
+//   k      number of entries in each vector (factorCount; the papers call it f)
 //   p      preference: 1 = "watched enough to count as a yes", 0 = "no"
 //   c      confidence: how much we trust that p
 //   b      a video's appeal (its bias)
@@ -38,7 +44,11 @@ export const DEFAULT_SETTINGS = {
   seed: 1,
 };
 
-/** A tap on the heart is treated as watching the video twice over (the KuaiRec authors' suggestion). */
+/**
+ * A tap on the heart is counted as a watch ratio of 2.0. The KuaiRec authors
+ * suggest calling a watch ratio above 2.0 a "like"; we use their number the
+ * other way round, to turn a like into a watch ratio.
+ */
 export const LIKE_AS_WATCH_RATIO = 2.0;
 
 /** Preference p: 1 if the person watched at least the threshold share of the video, else 0. */
@@ -54,7 +64,8 @@ export function preferenceOf(watchRatio, settings) {
  * For a video they did see, confidence grows with how far the watch ratio is
  * from the threshold, in either direction: an instant skip is a firm no, a
  * re-watch is a firm yes, and a watch that stops right at the threshold is a
- * coin-flip, so it counts least.
+ * coin-flip, so it counts least. This formula is ours, not the paper's: the
+ * paper has c = 1 + alpha x count, which has no way to express a firm "no".
  */
 export function confidenceOf(watchRatio, settings) {
   if (watchRatio === UNSEEN) return 0;
@@ -179,8 +190,8 @@ export function trainingLoss(watchRatios, userFactors, itemFactors, itemAppeal, 
 /**
  * Hides a share of the answers so the model can be marked on cells it never
  * trained on. Returns a copy of the grid with those cells set to UNSEEN, the
- * hidden cells themselves as [user, item, watchRatio], and an equally sized
- * sample of cells that were kept, for a fair comparison.
+ * hidden cells themselves as [user, item, watchRatio], and a sample of about
+ * the same size from the cells that were kept, for a fair comparison.
  */
 export function holdOutCells(watchRatios, share, random) {
   const training = watchRatios.map((row) => Float32Array.from(row));
@@ -222,7 +233,9 @@ export function meanSquaredMiss(cells, userFactors, itemFactors, itemAppeal, set
  * that were hidden from training by score, take the top k, and count how
  * many of those the person really did watch enough to count as a yes.
  * scoreOf(user, item) is whichever model is being marked, so two different
- * models can sit exactly the same exam. Returns a share from 0 to 1.
+ * models can sit exactly the same exam. People with fewer than k hidden
+ * videos cannot fill a top k and are left out. Returns the share of real
+ * yeses (null if nobody could be marked) and how many people were marked.
  */
 export function precisionAtTop(heldOut, scoreOf, settings, k) {
   const hiddenByUser = new Map();
@@ -231,14 +244,14 @@ export function precisionAtTop(heldOut, scoreOf, settings, k) {
     hiddenByUser.get(user).push([scoreOf(user, item), preferenceOf(ratio, settings)]);
   }
   let hits = 0;
-  let shown = 0;
+  let peopleMarked = 0;
   for (const cells of hiddenByUser.values()) {
-    if (cells.length < k) continue; // too few hidden videos to fill a top k
+    if (cells.length < k) continue;
     cells.sort((a, b) => b[0] - a[0]);
     for (let rank = 0; rank < k; rank++) hits += cells[rank][1];
-    shown += k;
+    peopleMarked += 1;
   }
-  return shown === 0 ? 0 : hits / shown;
+  return { share: peopleMarked === 0 ? null : hits / (peopleMarked * k), peopleMarked };
 }
 
 /**

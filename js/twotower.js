@@ -7,7 +7,11 @@
 // A two-tower model instead COMPUTES a video's list from things known about
 // it (here: its tags), and a person's list from the videos they liked. One
 // tower for videos, one for people; the score is still a dot product.
-// This follows Covington et al. (2016) and Yi et al. (2019).
+// The design is from Covington et al. (2016) and Yi et al. (2019). We keep
+// the two towers, the in-batch softmax and the 2019 paper's correction for
+// popular videos. We leave out: scaling the vectors to length 1 with a
+// "temperature", predicting a person's NEXT video rather than any one they
+// liked, and removing from a batch the "wrong answers" a person in fact liked.
 //
 //   video tower:  [the video's own ID numbers, its tags] -> hidden layer -> output
 //   person tower: average of the "history numbers" of videos they liked -> hidden layer -> output
@@ -87,7 +91,9 @@ export function softmaxCrossEntropy(scores, correctIndex) {
     total += probabilities[index];
   }
   for (let index = 0; index < scores.length; index++) probabilities[index] /= total;
-  const loss = -Math.log(probabilities[correctIndex]);
+  // The same as minus log(probability of the right answer), written so that a
+  // right answer with a hopelessly low score gives a large number, not Infinity.
+  const loss = Math.log(total) - (scores[correctIndex] - highest);
   probabilities[correctIndex] -= 1;
   return { loss, scoreGradient: probabilities };
 }
@@ -177,8 +183,13 @@ function towerBackward(hiddenLayer, outputLayer, pass, outputGradient, hiddenGra
  * Each example is { history, item, hideId }: a person described by videos
  * they liked, one more video they liked, and whether to hide that video's ID.
  * itemTags[item] is the tag vector of each video.
+ * logFrequency[item], if given, is the log of how often each video turns up
+ * in batches. A popular video is in many batches, so it is many people's
+ * "wrong answer", and the model would learn to mark it down just for being
+ * popular. Subtracting this from its score during training cancels that
+ * (the correction in Yi et al., 2019). It is not used when ranking for real.
  */
-export function batchLossAndGradients(model, batch, itemTags, gradients) {
+export function batchLossAndGradients(model, batch, itemTags, gradients, logFrequency = null) {
   const size = batch.length;
   const noId = new Float64Array(model.itemEmbedding[0].length);
   const userPasses = batch.map((example) => userTowerForward(model, example.history));
@@ -191,7 +202,10 @@ export function batchLossAndGradients(model, batch, itemTags, gradients) {
   let loss = 0;
   for (let person = 0; person < size; person++) {
     const scores = new Float64Array(size);
-    for (let video = 0; video < size; video++) scores[video] = dot(userPasses[person].output, itemPasses[video].output);
+    for (let video = 0; video < size; video++) {
+      scores[video] = dot(userPasses[person].output, itemPasses[video].output)
+        - (logFrequency ? logFrequency[batch[video].item] : 0);
+    }
     const result = softmaxCrossEntropy(scores, person); // the right answer for person i is video i
     loss += result.loss / size;
     for (let video = 0; video < size; video++) {
@@ -256,12 +270,13 @@ export function adamStep(model, gradients, adam, learningRate) {
 /**
  * Trains the model. likedByUser[user] lists the videos that person liked.
  * Each step draws a batch: a random person with at least two likes, one of
- * their likes as the answer, and up to historyLength of their other likes to
- * describe them. A quarter of the time the answer video's own ID is hidden,
- * which forces the video tower to manage on tags alone; that is exactly the
- * situation of a brand-new video. One time in ten the person's history is
- * hidden instead, so the model also learns what to offer somebody it knows
- * nothing about. onStep(step, loss) reports progress.
+ * their likes as the answer, and up to historyLength draws from their other
+ * likes to describe them (the same video can be drawn twice). A quarter of
+ * the time the answer video's own ID is hidden, which forces the video tower
+ * to manage on tags alone; that is exactly the situation of a brand-new
+ * video. Separately, one time in ten the person's history is hidden, so the
+ * model also learns what to offer somebody it knows nothing about.
+ * onStep(step, loss) reports progress.
  */
 export function trainTwoTower(model, likedByUser, itemTags, settings, random, onStep = null) {
   const eligible = [];
@@ -269,6 +284,15 @@ export function trainTwoTower(model, likedByUser, itemTags, settings, random, on
   const adam = createAdam(model);
   const lossHistory = [];
   if (eligible.length === 0) return lossHistory; // nobody liked two videos, so there is nothing to learn from
+
+  // How often each video turns up as an answer: its share of all the likes we draw from.
+  const likeCounts = new Float64Array(itemTags.length);
+  let likeTotal = 0;
+  for (const user of eligible) {
+    for (const item of likedByUser[user]) likeCounts[item] += 1 / likedByUser[user].length; // each person is drawn equally often
+    likeTotal += 1;
+  }
+  const logFrequency = likeCounts.map((count) => Math.log(Math.max(count, 1e-9) / likeTotal));
   for (let step = 1; step <= settings.stepCount; step++) {
     const batch = [];
     for (let b = 0; b < settings.batchSize; b++) {
@@ -283,7 +307,7 @@ export function trainTwoTower(model, likedByUser, itemTags, settings, random, on
       batch.push({ history, item, hideId: random() < settings.hideIdRate });
     }
     const gradients = zerosLike(model);
-    const loss = batchLossAndGradients(model, batch, itemTags, gradients);
+    const loss = batchLossAndGradients(model, batch, itemTags, gradients, logFrequency);
     adamStep(model, gradients, adam, settings.learningRate);
     lossHistory.push(loss);
     if (onStep) onStep(step, loss);

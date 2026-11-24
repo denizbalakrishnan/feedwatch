@@ -35,7 +35,7 @@ This README is a first draft. The project is still being built for the Global Vi
 
 Computed in your browser, from the grid and from your reactions: the crowd, the model, your vector, every score, the position of every dot, the bubble meter, the error chart and the recovery score. Nothing is pre-trained and nothing is fetched after the page loads.
 
-Drawn by hand: the card art, titles and icons (made up from each video's topic, and never shown to the model); the overall size of your dot's movement relative to the videos (the model fixes only the product of the two lists, not the size of each, so we draw both at the same scale).
+Drawn by hand: the card art, titles and icons (made up from each video's topic, and never shown to the model); the overall size of your dot's movement relative to the videos (people's and videos' lists of numbers come out at different typical sizes, so for drawing only we scale your dot to match the videos).
 
 ## What we simplified, and what did not work
 
@@ -45,7 +45,11 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
   - The "Real people" panel runs that second test live, on 1,000 real people and 800 real videos, so you can see the muddle for yourself.
   - We would rather show a simulation that says it is one than a real-data picture that does not show what we claim.
 - Real platforms use many more signals, far bigger models and several ranking stages.
-- The two-tower model reads one tag per video (its topic). Real ones read the picture, the sound and the caption. Ours also treats other videos in a training batch as wrong answers without correcting for popular videos turning up more often, which the 2019 paper does correct.
+- The two-tower model reads one tag per video, and that tag is the video's topic: the very thing the first model has to work out for itself. So the accuracy comparison between the two is not an even race, and the page says so. Real two-tower models read the picture, the sound and the caption.
+- Our two-tower model keeps the 2019 paper's correction for popular videos, but leaves out scaling vectors to length 1, predicting a person's next video rather than any liked one, and removing from a batch the "wrong answers" that the person in fact liked.
+- The confidence formula is our own. An instant skip counts about twice as firmly as watching a video to the end, and a like counts most of all.
+- A video only "plays" when you tap it. A real feed plays by itself; here that made time spent reading the page count as time spent watching.
+- The "explore where unsure" setting treats the noise in one reaction as 1 and the video vectors as exactly known, so its spread is a dial, not a calibrated probability.
 - With no history at all, the two-tower model gives everybody the same single guess, which tends to be one topic. The first model falls back on general appeal and gives a mix.
 - A "like" is counted as watching the video twice over.
 

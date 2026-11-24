@@ -113,7 +113,9 @@ export function choleskySolve(lower, rightSide) {
  * How: multiply a vector by the covariance matrix again and again. It swings
  * towards the direction of greatest spread. For the next axis, do the same
  * while removing any part that points along the axes already found.
- * Returns the mean of the points and the unit-length axes.
+ * Returns the mean of the points and the unit-length axes. (If the cloud has
+ * no spread left for a later axis, for example when every point is the same,
+ * that axis is not meaningful. Our video vectors never do that.)
  */
 export function principalAxes(rows, axisCount, iterationCount = 200) {
   const dimension = rows[0].length;

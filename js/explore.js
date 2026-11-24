@@ -29,6 +29,10 @@ export function pickEpsilonGreedy(scores, myWatchRatios, epsilon, random) {
  * lower). The uncertainty is the inverse of that matrix. To draw from it we
  * take plain bell-curve noise z and solve L-transpose x = z: the result has
  * exactly that inverse as its spread. "spread" scales the noise; 0 = none.
+ * Two simplifications: this is the textbook uncertainty only if the noise in
+ * one reaction is taken to be 1 (we do not measure it), and it treats the
+ * video vectors as exactly known. So "spread" is a dial, not a calibrated
+ * probability.
  */
 export function sampleUserVector(vector, lower, spread, random) {
   const noise = new Float64Array(vector.length);

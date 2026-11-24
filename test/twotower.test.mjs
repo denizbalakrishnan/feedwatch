@@ -9,16 +9,22 @@ import {
   embedItem, embedNewItem, embedUser,
 } from '../js/twotower.js';
 import { simulateCrowd } from '../js/sim.js';
-import { DEFAULT_SETTINGS, preferenceOf } from '../js/mf.js';
+import { DEFAULT_SETTINGS, preferenceOf, holdOutCells, precisionAtTop } from '../js/mf.js';
 import { dot, norm } from '../js/linalg.js';
 import { makeRandom, gaussian } from '../js/random.js';
 
 const NUDGE = 1e-5;
 
-/** Asserts two gradients agree to about five significant figures. */
+/**
+ * Asserts two gradients agree to about five significant figures. Gradients
+ * that are both essentially zero also count as agreeing: the video tower's
+ * output bias is one, because adding the same amount to every video's vector
+ * shifts all of one person's scores equally, and a softmax ignores that.
+ */
 function assertClose(measured, claimed, label) {
-  const scale = Math.max(1e-7, Math.abs(measured) + Math.abs(claimed));
-  assert.ok(Math.abs(measured - claimed) / scale < 1e-5, `${label}: measured ${measured}, backward pass says ${claimed}`);
+  const gap = Math.abs(measured - claimed);
+  const scale = Math.abs(measured) + Math.abs(claimed);
+  assert.ok(gap < 1e-8 || gap / scale < 1e-5, `${label}: measured ${measured}, backward pass says ${claimed}`);
 }
 
 /** How much lossOf() changes per unit change of array[index], measured by nudging it both ways. */
@@ -75,9 +81,11 @@ test('softmaxCrossEntropy gives minus log probability and the right gradient', (
   assert.ok(Math.abs(sum) < 1e-12, 'the gradients over the scores add up to zero');
 });
 
-test('softmaxCrossEntropy survives very large scores', () => {
-  const { loss } = softmaxCrossEntropy(Float64Array.of(1000, 999), 0);
-  assert.ok(Number.isFinite(loss) && loss > 0);
+test('softmaxCrossEntropy survives very large scores, whether the right answer leads or trails', () => {
+  const leading = softmaxCrossEntropy(Float64Array.of(1000, 999), 0).loss;
+  assert.ok(Number.isFinite(leading) && leading > 0);
+  const trailing = softmaxCrossEntropy(Float64Array.of(0, 800), 0).loss; // the right answer is 800 behind
+  assert.ok(Math.abs(trailing - 800) < 1e-9, `loss was ${trailing}, expected about 800`);
 });
 
 function tinyWorld() {
@@ -101,9 +109,10 @@ function tinyWorld() {
 
 test('the whole model: every group of numbers gets the gradient that nudging it measures', () => {
   const { model, batch, itemTags } = tinyWorld();
+  const logFrequency = Float64Array.of(-1.2, -2.5, -0.7, -3.1, -1.9, -0.4, -2.2); // the popularity correction is on
   const gradients = zerosLike(model);
-  batchLossAndGradients(model, batch, itemTags, gradients);
-  const lossOf = () => batchLossAndGradients(model, batch, itemTags, zerosLike(model));
+  batchLossAndGradients(model, batch, itemTags, gradients, logFrequency);
+  const lossOf = () => batchLossAndGradients(model, batch, itemTags, zerosLike(model), logFrequency);
   const values = arraysOf(model);
   const claimed = arraysOf(gradients);
   let checked = 0;
@@ -124,6 +133,36 @@ test('a hidden ID sends no gradient to that video\'s ID numbers', () => {
   assert.ok(gradients.itemEmbedding[0].some((value) => value !== 0), 'video 0 did not');
 });
 
+test('the popularity correction lowers a popular wrong answer\'s pull, and changes nothing when all are equal', () => {
+  const { model, batch, itemTags } = tinyWorld();
+  const plain = batchLossAndGradients(model, batch, itemTags, zerosLike(model));
+  const allEqual = batchLossAndGradients(model, batch, itemTags, zerosLike(model), new Float64Array(7).fill(-2));
+  assert.ok(Math.abs(plain - allEqual) < 1e-12, 'taking the same amount off every score cannot change a softmax');
+  const uneven = batchLossAndGradients(model, batch, itemTags, zerosLike(model), Float64Array.of(0, 0, 0, 0, 0, 0, -5));
+  assert.notEqual(plain, uneven);
+});
+
+test('the first Adam step moves every number by the learning rate, against its gradient', () => {
+  // On step one Adam's two corrected averages are the gradient and its square,
+  // so the step is learningRate x gradient / |gradient|: the same size for every number.
+  const { model, batch, itemTags } = tinyWorld();
+  const before = arraysOf(model).map((array) => Float64Array.from(array));
+  const gradients = zerosLike(model);
+  batchLossAndGradients(model, batch, itemTags, gradients);
+  adamStep(model, gradients, createAdam(model), 0.01);
+  const after = arraysOf(model);
+  const slopes = arraysOf(gradients);
+  let moved = 0;
+  for (let a = 0; a < after.length; a++) {
+    for (let i = 0; i < after[a].length; i++) {
+      if (Math.abs(slopes[a][i]) < 1e-6) continue; // no gradient, or too small for the size to be exact
+      assert.ok(Math.abs((after[a][i] - before[a][i]) + 0.01 * Math.sign(slopes[a][i])) < 1e-4);
+      moved++;
+    }
+  }
+  assert.ok(moved > 80, `only ${moved} numbers had a gradient`);
+});
+
 test('an Adam step lowers the loss on the batch it was computed from', () => {
   const { model, batch, itemTags } = tinyWorld();
   const adam = createAdam(model);
@@ -137,10 +176,11 @@ test('an Adam step lowers the loss on the batch it was computed from', () => {
   assert.ok(after < before, `loss went from ${before} to ${after}`);
 });
 
-test('trained on a simulated crowd, it places a brand-new video among videos with the same tag', () => {
+test('training is what makes it rank people\'s real likes first, and a brand-new video still lands by its tag', () => {
   const topicCount = 5;
   const crowd = simulateCrowd({ userCount: 150, itemCount: 120, topicCount, noise: 0.15, sparsity: 0, seed: 5 });
-  const likedByUser = crowd.watchRatios.map((row) => {
+  const split = holdOutCells(crowd.watchRatios, 0.2, makeRandom(6)); // hide a fifth of the answers
+  const likedByUser = split.training.map((row) => {
     const liked = [];
     row.forEach((ratio, item) => { if (preferenceOf(ratio, DEFAULT_SETTINGS) === 1) liked.push(item); });
     return liked;
@@ -150,7 +190,21 @@ test('trained on a simulated crowd, it places a brand-new video among videos wit
   const settings = { ...TWO_TOWER_DEFAULTS, stepCount: 300 };
   const random = makeRandom(8);
   const model = createTwoTower(120, topicCount, settings, random);
+
+  /** Of each person's top 10 hidden videos, the share they really liked. */
+  const markOf = (anyModel) => {
+    const videos = itemTags.map((tags, item) => embedItem(anyModel, item, tags));
+    const people = likedByUser.map((liked) => embedUser(anyModel, liked));
+    return precisionAtTop(split.heldOut, (user, item) => dot(people[user], videos[item]), DEFAULT_SETTINGS, 10).share;
+  };
+  const beforeTraining = markOf(model);
   const lossHistory = trainTwoTower(model, likedByUser, itemTags, settings, random);
+  const afterTraining = markOf(model);
+  let yes = 0;
+  for (const [, , ratio] of split.heldOut) yes += preferenceOf(ratio, DEFAULT_SETTINGS);
+  const guessing = yes / split.heldOut.length;
+  assert.ok(afterTraining > guessing + 0.15, `trained ${afterTraining} should clearly beat guessing ${guessing}`);
+  assert.ok(afterTraining > beforeTraining + 0.1, `training should help: ${beforeTraining} before, ${afterTraining} after`);
 
   const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
   // In this small crowd each person likes over half the videos, so most "wrong"
@@ -167,12 +221,9 @@ test('trained on a simulated crowd, it places a brand-new video among videos wit
     for (let item = 1; item < 120; item++) if (cosine(fresh, known[item]) > cosine(fresh, known[nearest])) nearest = item;
     if (crowd.itemTopics[nearest] === topic) sameTopic++;
   }
+  // This part holds even before training, because a tag is a much bigger input
+  // than the small random ID numbers. It checks the design, not the learning;
+  // the learning is checked by the marks above.
   assert.equal(sameTopic, topicCount, 'every brand-new video should land beside videos that share its tag');
-
-  // A person with no history still gets a vector, and a fan's top videos are their topic.
-  assert.equal(embedUser(model, []).length, settings.outputSize);
-  const fan = embedUser(model, [0, 5, 10]); // three videos of topic 0
-  const ranked = known.map((vector, item) => [dot(fan, vector), item]).sort((a, b) => b[0] - a[0]).slice(0, 10);
-  const hits = ranked.filter(([, item]) => crowd.itemTopics[item] === 0 || crowd.itemTopics[item] === 1 || crowd.itemTopics[item] === 4).length;
-  assert.ok(hits >= 8, `only ${hits} of a topic-0 fan's top 10 were topic 0 or its ring neighbours`);
+  assert.equal(embedUser(model, []).length, settings.outputSize, 'a person with no history still gets a vector');
 });

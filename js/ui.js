@@ -24,7 +24,7 @@ const REAL_SETTINGS = { ...DEFAULT_SETTINGS, factorCount: 16, confidenceGain: 0,
 const NO_TURN = [[1, 0], [0, 1]];
 const NUDGE_AFTER = 3; // reactions before we point at the reveal switch
 const MAX_EPSILON = 0.5; // "random sometimes" at full strength: every other video is random
-const MAX_SPREAD = 2; // Thompson sampling at full strength: twice the model's real uncertainty
+const MAX_SPREAD = 2; // Thompson sampling at full strength: twice the spread the fold-in itself gives
 const RECENT_COUNT = 20; // how many recommendations the bubble meter looks back over
 const AUTOPILOT_SWIPES = 30;
 const AUTOPILOT_STEP_MS = 90;
@@ -82,9 +82,9 @@ const state = {
 };
 
 const tasteMap = new TasteMap(find('map'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
-const towerMap = new TasteMap(find('towerMap'), { colours: CATEGORY_COLOURS, theme, reducedMotion });
+const towerMap = new TasteMap(find('towerMap'), { colours: CATEGORY_COLOURS, theme, reducedMotion, showUser: false });
 towerMap.setRevealed(true); // the second model is given the tags, so its map has nothing to hide
-const realMap = new TasteMap(find('realMap'), { colours: REAL_COLOURS, theme, reducedMotion, videosOnly: true });
+const realMap = new TasteMap(find('realMap'), { colours: REAL_COLOURS, theme, reducedMotion, showUser: false, showLabels: false });
 realMap.setRevealed(true);
 let realCrowd = null; // the real-data grid, fetched the first time it is asked for
 const feed = new Feed(find('feed'), { onReaction: recordReaction, onNeedNext: dealNextCard, reducedMotion });
@@ -191,16 +191,16 @@ function describeTraining(result) {
   for (const node of document.querySelectorAll('.factor-count')) node.textContent = String(size);
 
   find('mapCaption').textContent =
-    `Every dot is one video. The bright dot is you. The model was trained in ${result.seconds.toFixed(1)} s, ` +
-    `in this tab, on ${result.trainedCells.toLocaleString('en')} watch times from a simulated crowd of ` +
+    `The model was trained in ${result.seconds.toFixed(1)} s, in this tab, on ` +
+    `${result.trainedCells.toLocaleString('en')} watch times from a simulated crowd of ` +
     `${crowd.userCount.toLocaleString('en')} people and ${crowd.itemCount} videos, and on nothing else.`;
   find('trainStatus').textContent = `Trained in ${result.seconds.toFixed(1)} s.`;
 
   const last = state.errorHistory[state.errorHistory.length - 1];
   find('errorText').textContent =
-    `After the last sweep the model's average squared miss was ${last.trainingError.toFixed(3)} on cells it trained on ` +
-    `and ${last.heldOutError.toFixed(3)} on the ${result.hiddenCells.toLocaleString('en')} cells hidden from it. ` +
-    'A large gap means it has memorised noise.';
+    `One watch time in ten was hidden from training. After the last sweep the model's average squared miss was ` +
+    `${last.trainingError.toFixed(3)} on watch times it trained on and ${last.heldOutError.toFixed(3)} on the ` +
+    `${result.hiddenCells.toLocaleString('en')} hidden ones. A large gap means it has memorised noise.`;
 
   const topics = state.videos.map((video) => video.category);
   const inModel = Math.round(100 * neighbourAgreement(state.itemFactors, topics));
@@ -211,9 +211,10 @@ function describeTraining(result) {
 }
 
 /**
- * The model only fixes the product "person . video", not the size of each
- * side, so people's vectors come out shorter than videos'. We draw both at
- * the same overall size: this is the typical distance from the map's centre.
+ * People's vectors and videos' vectors come out at different typical
+ * lengths. For drawing only, we scale your dot so that the crowd and the
+ * videos would sit at the same overall distance from the map's centre.
+ * This returns that typical distance for a set of points.
  */
 function typicalDistance(points) {
   let total = 0;
@@ -236,8 +237,7 @@ function showTower(result) {
   let points = result.itemVectors.map((vector) => projectOntoAxes(vector, axes));
   const turn = procrustes2D(points, state.videoPoints); // same videos as the main map, so face the same way
   points = points.map((point) => applyMatrix2D(turn, point));
-  const crowdPoints = result.userVectors.map((vector) => projectOntoAxes(vector, axes));
-  state.towerView = { axes, turn, userScale: typicalDistance(points) / typicalDistance(crowdPoints) };
+  state.towerView = { axes, turn };
 
   towerMap.setVideos(points, {
     categories: state.videos.map((video) => video.category),
@@ -255,16 +255,20 @@ function showTower(result) {
     `map at the top. It was trained in ${result.seconds.toFixed(1)} s (${result.stepCount} steps of ` +
     `${TWO_TOWER_DEFAULTS.batchSize} examples) and was given each video's tag, so here the colours are no secret.`;
   const percent = (share) => `${Math.round(100 * share)}%`;
-  find('precisionText').textContent =
-    `Both models ranked every person's hidden videos. Of each person's top ${result.topCount}, the share they really ` +
-    `watched: first model ${percent(result.firstPrecision)}, two-tower model ${percent(result.towerPrecision)}. ` +
-    `Picking at random would score about ${percent(result.yesShare)}.`;
+  find('precisionText').textContent = result.firstPrecision === null
+    ? `One watch time in ten was hidden from both models during training, but with this crowd nobody has ` +
+      `${result.topCount} hidden videos to rank, so neither model can be marked. Lower the gaps and train again.`
+    : `One watch time in ten was hidden from both models during training. Each model then ranked every person's ` +
+      `hidden videos. Of each person's top ${result.topCount}, the share they really watched: first model ` +
+      `${percent(result.firstPrecision)}, two-tower model ${percent(result.towerPrecision)} ` +
+      `(${result.peopleMarked.toLocaleString('en')} people marked). Picking at random would score about ` +
+      `${percent(result.yesShare)}. This is not an even race: each video's tag here is its topic, the very thing ` +
+      'the first model has to work out for itself. The two-tower model is here for the brand-new video, not to win.';
   renderTowerPanel();
 }
 
-function towerPointOf(vector, scale) {
-  const flat = applyMatrix2D(state.towerView.turn, projectOntoAxes(vector, state.towerView.axes));
-  return [flat[0] * scale, flat[1] * scale];
+function towerPointOf(vector) {
+  return applyMatrix2D(state.towerView.turn, projectOntoAxes(vector, state.towerView.axes));
 }
 
 /** The videos you have said yes to. This list is all the two-tower model knows about you. */
@@ -288,7 +292,6 @@ function topUnseen(scores, count) {
 function renderTowerPanel() {
   if (!state.tower) return;
   state.towerUserVector = embedUser(state.tower, likedHistory());
-  towerMap.placeUser(towerPointOf(state.towerUserVector, state.towerView.userScale));
 
   const firstScores = scoreItems(state.myVector, state.itemFactors, state.itemAppeal);
   const towerScores = state.towerItemVectors.map((vector) => dot(state.towerUserVector, vector));
@@ -311,7 +314,7 @@ function uploadNewVideo() {
     return;
   }
   const vector = embedNewItem(state.tower, tagsToVector(tags, state.categories.length));
-  towerMap.setMarker(towerPointOf(vector, 1), 'new video');
+  towerMap.setMarker(towerPointOf(vector), 'new video');
 
   const nearest = state.towerItemVectors
     .map((known, item) => [dot(vector, known) / (norm(vector) * norm(known)), item])
@@ -346,7 +349,6 @@ function fillTagChoices() {
     box.type = 'checkbox';
     box.name = 'newVideoTag';
     box.value = String(index);
-    box.checked = index === 0;
     label.append(box, make('span', '', `${category.icon} ${category.name}`));
     holder.append(label);
   });
@@ -455,12 +457,13 @@ function recordReaction(video, watchRatio, liked) {
 
   if (told === UNSEEN) {
     find('reading').textContent =
-      `The model was told nothing about video ${video.index + 1}: it is set to learn from likes only.`;
+      `About "${video.title}" the model was told nothing: it is set to learn from likes only.`;
   } else {
     const what = told === LIKE_AS_WATCH_RATIO ? 'liked' : `watched ${Math.round(watchRatio * 100)}%`;
     const verdict = told === LIKE_AS_WATCH_RATIO ? 'a firm yes' : readAsYes ? 'a yes' : told < 0.2 ? 'a firm no' : 'a no';
     find('reading').textContent =
-      `All the model was told: video ${video.index + 1}, ${what}. It reads that as ${verdict} and moves you.`;
+      `About "${video.title}", all the model was told is: video ${video.index + 1}, ${what}. ` +
+      `It reads that as ${verdict} and moves you.`;
   }
   renderVectorPanel();
   renderTowerPanel();
@@ -505,17 +508,39 @@ function dealNextCard() {
  * of one topic and skip everything else after a tenth of it. The model is
  * still only told watch ratios; the topic is the pretend viewer's secret.
  */
-function runAutopilot(likedCategory, swipesLeft) {
-  if (swipesLeft === 0 || !state.currentVideo) return;
+function runAutopilot(likedCategory, swipesLeft, topicsTried) {
+  const name = state.categories[likedCategory].name;
+  if (swipesLeft === 0 || !state.currentVideo) {
+    setAutopilotBusy(false);
+    find('autopilotText').textContent =
+      `Done. In ${AUTOPILOT_SWIPES} swipes the feed tried ${topicsTried.size} of its ${state.categories.length} ` +
+      `topics on this ${name} fan. Change the exploration setting and run it again to compare.`;
+    return;
+  }
   const video = state.currentVideo;
+  topicsTried.add(video.category);
   recordReaction(video, 0.1, video.category === likedCategory);
   dealNextCard();
-  setTimeout(() => runAutopilot(likedCategory, swipesLeft - 1), reducedMotion ? 0 : AUTOPILOT_STEP_MS);
+  find('autopilotText').textContent = `Swipe ${AUTOPILOT_SWIPES - swipesLeft + 1} of ${AUTOPILOT_SWIPES}…`;
+  setTimeout(() => runAutopilot(likedCategory, swipesLeft - 1, topicsTried), reducedMotion ? 0 : AUTOPILOT_STEP_MS);
+}
+
+/** Starts the pretend viewer as a brand-new person, with the map in view so the run can be watched. */
+function startAutopilot() {
+  startAgain();
+  setAutopilotBusy(true);
+  find('map').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+  runAutopilot(Number(find('autopilotTopic').value), AUTOPILOT_SWIPES, new Set());
+}
+
+function setAutopilotBusy(busy) {
+  for (const id of ['autopilotButton', 'resetButton', 'trainButton']) find(id).disabled = busy;
 }
 
 function startAgain() {
   forgetPerson();
   find('reading').textContent = 'Started again as a brand-new person.';
+  find('autopilotText').textContent = '';
   dealNextCard();
 }
 
@@ -524,26 +549,33 @@ function startAgain() {
 function setRevealed(revealed) {
   tasteMap.setRevealed(revealed);
   find('revealLabel').classList.remove('nudge');
-  find('revealNote').hidden = !revealed;
+  find('revealNote').textContent = revealed
+    ? "These colours are the videos' topics. The model was never given them. It grouped the videos using only who watched what."
+    : 'Every dot is one video. The bright dot is you. The dashed line points at the video on the card.';
 }
 
 /** Shows how varied your recent recommendations were: 0% is a sealed bubble. */
 function renderBubbleMeter() {
+  const count = state.recentCategories.length;
+  if (count < 5) { // too few to judge
+    find('bubbleFill').style.width = '0%';
+    find('bubbleText').textContent = 'Variety of your recent recommendations: too early to say.';
+    return;
+  }
   const mix = categoryMix(state.recentCategories, state.categories.length);
   const percent = Math.round(mix * 100);
   find('bubbleFill').style.width = `${percent}%`;
   const verdict = mix < 0.3 ? 'A bubble: nearly everything is one topic.'
-    : mix < 0.65 ? 'Narrowing: a few topics dominate.'
-      : 'Varied: many topics are getting through.';
-  find('bubbleText').textContent =
-    `Variety of your last ${state.recentCategories.length} recommendations: ${percent}%. ${verdict}`;
+    : mix < 0.65 ? 'A few topics dominate.'
+      : 'Many topics are getting through.';
+  find('bubbleText').textContent = `Variety of your last ${count} recommendations: ${percent}%. ${verdict}`;
 }
 
 function renderExploreAmount() {
   find('exploreAmountRow').hidden = state.exploreMode === 'greedy';
   find('exploreAmountText').textContent = state.exploreMode === 'epsilon'
     ? `${Math.round(MAX_EPSILON * state.exploreAmount * 100)}% of videos are picked at random`
-    : `sampling at ${(MAX_SPREAD * state.exploreAmount).toFixed(1)} times the model's own uncertainty`;
+    : `wobble ${(MAX_SPREAD * state.exploreAmount).toFixed(1)}: how far the imagined you may stray from the model's best guess`;
 }
 
 /** Fills the "Your vector" panel with the real numbers behind the map. */
@@ -628,7 +660,7 @@ function wireControls() {
     state.exploreAmount = Number(event.target.value) / 100;
     renderExploreAmount();
   });
-  find('autopilotButton').addEventListener('click', () => runAutopilot(Number(find('autopilotTopic').value), AUTOPILOT_SWIPES));
+  find('autopilotButton').addEventListener('click', startAutopilot);
   find('resetButton').addEventListener('click', startAgain);
 
   for (const radio of document.querySelectorAll('input[name="signal"]')) {

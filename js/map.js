@@ -12,12 +12,13 @@ export class TasteMap {
    * theme holds four colours read from the CSS tokens, as 6-digit hex:
    * dot (a video before the reveal), you, text and background.
    */
-  constructor(canvas, { colours, theme, reducedMotion, videosOnly = false }) {
+  constructor(canvas, { colours, theme, reducedMotion, showUser = true, showLabels = true }) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
     this.theme = theme;
     this.colours = colours;
-    this.videosOnly = videosOnly; // true = draw the video dots alone: no "you", no labels
+    this.showUser = showUser; // false = no "you" dot, trail or line to the playing video
+    this.showLabels = showLabels; // false = no category names on the map, even when revealed
     this.categoryLabels = [];
     this.titles = [];
     this.reducedMotion = reducedMotion;
@@ -37,7 +38,8 @@ export class TasteMap {
 
     canvas.addEventListener('pointermove', (event) => this.hoverAt(event));
     canvas.addEventListener('pointerdown', (event) => this.hoverAt(event));
-    canvas.addEventListener('pointerleave', () => this.setHovered(-1));
+    // A finger "leaves" the moment it lifts, which would wipe the name it just asked for, so only a mouse clears it.
+    canvas.addEventListener('pointerleave', (event) => { if (event.pointerType === 'mouse') this.setHovered(-1); });
     new ResizeObserver(() => this.resize()).observe(canvas);
   }
 
@@ -159,7 +161,7 @@ export class TasteMap {
     const pointerX = event.clientX - box.left;
     const pointerY = event.clientY - box.top;
     let nearest = -1;
-    let nearestDistance = HOVER_REACH;
+    let nearestDistance = event.pointerType === 'mouse' ? HOVER_REACH : 2 * HOVER_REACH; // fingers are less exact
     for (let item = 0; item < this.points.length; item++) {
       const [x, y] = this.toScreen(this.points[item]);
       const distance = Math.hypot(x - pointerX, y - pointerY);
@@ -182,8 +184,8 @@ export class TasteMap {
     const context = this.context;
     context.clearRect(0, 0, this.width, this.height);
     this.drawVideos(context);
-    if (!this.videosOnly) {
-      if (this.revealed) this.drawCategoryLabels(context);
+    if (this.revealed && this.showLabels) this.drawCategoryLabels(context);
+    if (this.showUser) {
       this.drawTrail(context);
       this.drawTargetLine(context);
       this.drawUser(context);
