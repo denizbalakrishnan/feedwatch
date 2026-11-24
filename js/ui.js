@@ -4,7 +4,7 @@
 // (lab.js). Training runs in train.worker.js. No model arithmetic happens here.
 
 import {
-  DEFAULT_SETTINGS, UNSEEN, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
+  DEFAULT_SETTINGS, UNSEEN, PASSED, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
 } from './mf.js';
 import { dot, norm, principalAxes, projectOntoAxes, procrustes2D, applyMatrix2D } from './linalg.js';
 import { pickEpsilonGreedy, pickThompson, categoryMix } from './explore.js';
@@ -73,11 +73,12 @@ const state = {
   myVector: null,
   currentVideo: null,
   recentCategories: [], // hidden categories of the last few recommendations, for the bubble meter
+  isPretendFan: false, // true after a fast-forward run: the dot is then the pretend viewer, not you
 
   // lab choices
   signal: 'both', // 'both', 'likes' or 'watch'
   exploreMode: 'greedy', // 'greedy', 'epsilon' or 'thompson'
-  exploreAmount: 0.5, // the slider, from 0 to 1
+  exploreAmount: 0.25, // the slider, from 0 to 1 (0.25 = strength 0.5: explores, but still mostly serves your taste)
   random: makeRandom(7),
 };
 
@@ -407,9 +408,9 @@ function showRealModel(result) {
 
 /** What the model is told about one reaction, given the signal choice. UNSEEN means "nothing". */
 function evidenceFrom(reaction) {
-  if (state.signal === 'likes') return reaction.liked ? LIKE_AS_WATCH_RATIO : UNSEEN;
-  if (state.signal === 'watch') return reaction.watchRatio;
-  return reaction.liked ? LIKE_AS_WATCH_RATIO : reaction.watchRatio;
+  if (reaction.liked && state.signal !== 'watch') return LIKE_AS_WATCH_RATIO;
+  if (state.signal === 'likes') return UNSEEN;
+  return reaction.watchRatio === 0 ? PASSED : reaction.watchRatio; // never started = a pass, not a rejection
 }
 
 /** Solves your vector again from the evidence so far. */
@@ -459,11 +460,14 @@ function recordReaction(video, watchRatio, liked) {
     find('reading').textContent =
       `About "${video.title}" the model was told nothing: it is set to learn from likes only.`;
   } else {
-    const what = told === LIKE_AS_WATCH_RATIO ? 'liked' : `watched ${Math.round(watchRatio * 100)}%`;
-    const verdict = told === LIKE_AS_WATCH_RATIO ? 'a firm yes' : readAsYes ? 'a yes' : told < 0.2 ? 'a firm no' : 'a no';
+    const what = told === LIKE_AS_WATCH_RATIO ? 'liked'
+      : told === PASSED ? 'passed without watching' : `watched ${Math.round(watchRatio * 100)}%`;
+    const verdict = told === LIKE_AS_WATCH_RATIO ? 'a firm yes'
+      : told === PASSED ? 'a faint no'
+        : readAsYes ? 'a yes' : told < 0.2 ? 'a firm no' : 'a no (a yes needs 70%)';
     find('reading').textContent =
       `About "${video.title}", all the model was told is: video ${video.index + 1}, ${what}. ` +
-      `It reads that as ${verdict} and moves you.`;
+      `It reads that as ${verdict} and moves ${state.isPretendFan ? 'the fan' : 'you'}.`;
   }
   renderVectorPanel();
   renderTowerPanel();
@@ -500,37 +504,69 @@ function dealNextCard() {
   if (state.recentCategories.length > RECENT_COUNT) state.recentCategories.shift();
   feed.show(video, CATEGORY_COLOURS[video.category], state.categories[video.category].icon);
   tasteMap.setTarget(item);
+  explainChoice(item);
   renderBubbleMeter();
+}
+
+/** Says in one line why this video is on the card: the two parts of its score, and where it ranked. */
+function explainChoice(item) {
+  const appeal = state.itemAppeal[item];
+  const match = dot(state.myVector, state.itemFactors[item]);
+  const scores = scoreItems(state.myVector, state.itemFactors, state.itemAppeal);
+  let rank = 1;
+  for (let other = 0; other < scores.length; other++) {
+    if (state.shownMarks[other] === UNSEEN && scores[other] > scores[item]) rank += 1;
+  }
+  find('why').textContent =
+    `Why this video: general appeal ${appeal.toFixed(2)} ${match < 0 ? '−' : '+'} ` +
+    `match with ${state.isPretendFan ? 'the fan' : 'you'} ${Math.abs(match).toFixed(2)} = score ${(appeal + match).toFixed(2)}, ` +
+    (rank === 1 ? 'the highest of the videos not yet shown.' : `number ${rank} in line. It was picked to explore.`);
 }
 
 /**
  * Fast-forwards the feed with a simple pretend viewer: they like every video
- * of one topic and skip everything else after a tenth of it. The model is
- * still only told watch ratios; the topic is the pretend viewer's secret.
+ * of one topic and pass on everything else without watching. The model is
+ * still only told likes and passes; the topic is the pretend viewer's secret.
  */
-function runAutopilot(likedCategory, swipesLeft, topicsTried) {
+function runAutopilot(likedCategory, swipesLeft) {
   const name = state.categories[likedCategory].name;
   if (swipesLeft === 0 || !state.currentVideo) {
-    setAutopilotBusy(false);
-    find('autopilotText').textContent =
-      `Done. In ${AUTOPILOT_SWIPES} swipes the feed tried ${topicsTried.size} of its ${state.categories.length} ` +
-      `topics on this ${name} fan. Change the exploration setting and run it again to compare.`;
+    finishAutopilot(likedCategory);
     return;
   }
   const video = state.currentVideo;
-  topicsTried.add(video.category);
-  recordReaction(video, 0.1, video.category === likedCategory);
+  recordReaction(video, 0, video.category === likedCategory);
   dealNextCard();
-  find('autopilotText').textContent = `Swipe ${AUTOPILOT_SWIPES - swipesLeft + 1} of ${AUTOPILOT_SWIPES}…`;
-  setTimeout(() => runAutopilot(likedCategory, swipesLeft - 1, topicsTried), reducedMotion ? 0 : AUTOPILOT_STEP_MS);
+  find('runText').textContent = `A pretend ${name} fan is swiping: ${AUTOPILOT_SWIPES - swipesLeft + 1} of ${AUTOPILOT_SWIPES}…`;
+  setTimeout(() => runAutopilot(likedCategory, swipesLeft - 1), reducedMotion ? 0 : AUTOPILOT_STEP_MS);
 }
 
 /** Starts the pretend viewer as a brand-new person, with the map in view so the run can be watched. */
 function startAutopilot() {
   startAgain();
+  state.isPretendFan = true;
+  tasteMap.setUserLabel('fan');
   setAutopilotBusy(true);
-  find('map').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
-  runAutopilot(Number(find('autopilotTopic').value), AUTOPILOT_SWIPES, new Set());
+  find('runStatus').hidden = false;
+  find('backToExplore').hidden = true;
+  document.querySelector('.map-panel').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+  runAutopilot(Number(find('autopilotTopic').value), AUTOPILOT_SWIPES);
+}
+
+/** Reports one finished run next to the map, and keeps it in a short list so two runs can be compared. */
+function finishAutopilot(likedCategory) {
+  const name = state.categories[likedCategory].name;
+  const outside = state.recentCategories.filter((category) => category !== likedCategory).length;
+  const setting = state.exploreMode === 'greedy' ? 'Exploration off'
+    : state.exploreMode === 'epsilon' ? `Random sometimes (${Math.round(MAX_EPSILON * state.exploreAmount * 100)}%)`
+      : `Explore where unsure (strength ${(MAX_SPREAD * state.exploreAmount).toFixed(1)})`;
+  const summary = `${setting}: ${outside} of the fan's last ${state.recentCategories.length} videos were outside ${name}.`;
+  find('runText').textContent = `Done. ${summary} The dot is now this fan, not you.`;
+  find('backToExplore').hidden = false;
+  const log = find('autopilotLog');
+  log.append(make('li', '', summary));
+  while (log.children.length > 4) log.firstElementChild.remove();
+  setAutopilotBusy(false);
 }
 
 function setAutopilotBusy(busy) {
@@ -538,9 +574,11 @@ function setAutopilotBusy(busy) {
 }
 
 function startAgain() {
+  state.isPretendFan = false;
+  tasteMap.setUserLabel('you');
+  find('runStatus').hidden = true;
   forgetPerson();
   find('reading').textContent = 'Started again as a brand-new person.';
-  find('autopilotText').textContent = '';
   dealNextCard();
 }
 
@@ -557,9 +595,10 @@ function setRevealed(revealed) {
 /** Shows how varied your recent recommendations were: 0% is a sealed bubble. */
 function renderBubbleMeter() {
   const count = state.recentCategories.length;
+  const whose = state.isPretendFan ? "the fan's" : 'your';
   if (count < 5) { // too few to judge
     find('bubbleFill').style.width = '0%';
-    find('bubbleText').textContent = 'Variety of your recent recommendations: too early to say.';
+    find('bubbleText').textContent = `Variety of ${whose} recent recommendations: too early to say.`;
     return;
   }
   const mix = categoryMix(state.recentCategories, state.categories.length);
@@ -568,14 +607,15 @@ function renderBubbleMeter() {
   const verdict = mix < 0.3 ? 'A bubble: nearly everything is one topic.'
     : mix < 0.65 ? 'A few topics dominate.'
       : 'Many topics are getting through.';
-  find('bubbleText').textContent = `Variety of your last ${count} recommendations: ${percent}%. ${verdict}`;
+  find('bubbleText').textContent =
+    `Variety of ${whose} last ${count} recommendations: ${percent}% (0% is all one topic, 100% an even spread). ${verdict}`;
 }
 
 function renderExploreAmount() {
   find('exploreAmountRow').hidden = state.exploreMode === 'greedy';
   find('exploreAmountText').textContent = state.exploreMode === 'epsilon'
     ? `${Math.round(MAX_EPSILON * state.exploreAmount * 100)}% of videos are picked at random`
-    : `wobble ${(MAX_SPREAD * state.exploreAmount).toFixed(1)}: how far the imagined you may stray from the model's best guess`;
+    : `strength ${(MAX_SPREAD * state.exploreAmount).toFixed(1)}: how far the imagined you may stray from the model's best guess`;
 }
 
 /** Fills the "Your vector" panel with the real numbers behind the map. */
@@ -602,6 +642,9 @@ function renderVectorPanel() {
     const row = make('tr');
     if (ratio === UNSEEN) {
       row.append(make('td', '', `video ${item + 1}`), make('td', '', 'not counted'), make('td', '', '–'), make('td', '', '0'));
+    } else if (ratio === PASSED) {
+      row.append(make('td', '', `video ${item + 1}`), make('td', '', 'passed, not watched'), make('td', '', 'no (0)'),
+        make('td', '', state.settings.passConfidence.toFixed(2)));
     } else {
       row.append(
         make('td', '', `video ${item + 1}`),
@@ -661,6 +704,8 @@ function wireControls() {
     renderExploreAmount();
   });
   find('autopilotButton').addEventListener('click', startAutopilot);
+  find('backToExplore').addEventListener('click', () =>
+    find('explorePanel').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' }));
   find('resetButton').addEventListener('click', startAgain);
 
   for (const radio of document.querySelectorAll('input[name="signal"]')) {

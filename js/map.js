@@ -31,6 +31,7 @@ export class TasteMap {
     this.shown = new Map(); // video index -> true (read as yes) or false (read as no)
     this.target = -1; // the video playing now
     this.marker = null; // one extra labelled point, or null
+    this.userLabel = 'you';
     this.hovered = -1;
     this.user = [0, 0];
     this.trail = []; // every place your dot has settled, oldest first
@@ -76,6 +77,13 @@ export class TasteMap {
 
   setTarget(item) {
     this.target = item;
+    this.hovered = -1; // a name left over from a tap should not sit on the map for ever
+    this.draw();
+  }
+
+  /** Changes the word written beside the bright dot ("you", or "fan" during a fast-forward run). */
+  setUserLabel(label) {
+    this.userLabel = label;
     this.draw();
   }
 
@@ -309,9 +317,9 @@ export class TasteMap {
     context.textBaseline = 'alphabetic';
     context.lineWidth = 4;
     context.strokeStyle = this.theme.background;
-    context.strokeText('you', x, y - 14);
+    context.strokeText(this.userLabel, x, y - 14);
     context.fillStyle = this.theme.you;
-    context.fillText('you', x, y - 14);
+    context.fillText(this.userLabel, x, y - 14);
   }
 
   drawTooltip(context, item) {

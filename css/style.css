@@ -89,9 +89,11 @@ body {
   background: #000;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--color-border);
   cursor: grab;
-  touch-action: none; /* so an upward drag is a swipe, not a page scroll */
+  touch-action: pan-y; /* a sideways drag is our swipe; an up-or-down drag still scrolls the page */
   user-select: none;
 }
+.card.playing .card-icon { animation: playing 1s ease-in-out infinite; } /* so tapping visibly starts something */
+@keyframes playing { 50% { transform: scale(1.08); } }
 .card:active { cursor: grabbing; }
 
 .card-face {
@@ -193,7 +195,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 button.like { background: var(--color-like); border-color: var(--color-like); color: #fff; }
 button.like:hover { background: #c81f69; border-color: #c81f69; }
 
-.reading { min-height: 3em; margin: var(--space-3) 2px 0; color: var(--color-text-muted); font-size: 0.9rem; }
+/* the sentence that carries the argument, so it is full size and full brightness */
+.reading { min-height: 4.5em; margin: var(--space-3) 2px 0; font-size: 1rem; }
+.why { min-height: 3em; margin: var(--space-1) 2px 0; color: var(--color-text-muted); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+
+.run-status { margin: var(--space-2) var(--space-1) 0; font-weight: 600; }
+.run-status button { margin-top: var(--space-2); }
+.run-log { margin: var(--space-3) 0 0; padding-left: 1.2em; font-variant-numeric: tabular-nums; }
 
 .map-panel {
   padding: var(--space-3);
@@ -308,13 +316,14 @@ select {
   .card { height: clamp(180px, 25vh, 250px); min-height: 0; border-radius: 20px; }
   .card-icon { font-size: clamp(3rem, 9vh, 4.5rem); }
   .feed-buttons { margin-top: var(--space-2); }
-  .reading { min-height: 4.2em; margin-top: var(--space-2); font-size: 0.85rem; }
+  .reading { min-height: 4.5em; margin-top: var(--space-2); font-size: 0.95rem; }
+  .why { min-height: 4em; font-size: 0.82rem; }
   .reveal-note { min-height: 4.5em; }
   #map { height: clamp(230px, 34vh, 320px); min-height: 0; }
   .panel-body { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card-face.entering, .card-face.loading, .reveal.nudge, .swipe-hint { animation: none; }
+  .card-face.entering, .card-face.loading, .reveal.nudge, .swipe-hint, .card.playing .card-icon { animation: none; }
   .card-heart, .card-play, button, .vector-fill, .panel summary::before { transition: none; }
 }

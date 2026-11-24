@@ -34,12 +34,20 @@ import { makeRandom, gaussian } from './random.js';
 /** Marks a cell where the person was never shown the video. */
 export const UNSEEN = -1;
 
+/**
+ * Marks a video the person was shown but moved past without playing. In our
+ * feed a video only plays when tapped, so a pass says much less than
+ * starting a video and giving up on it: it is a hint, not a verdict.
+ */
+export const PASSED = -2;
+
 /** The numbers a user can change in the lab. See LEARN/decisions.md for why each default. */
 export const DEFAULT_SETTINGS = {
   factorCount: 8, // k
   regularisation: 2, // lambda
   confidenceGain: 10, // alpha
   likeThreshold: 0.7, // watch ratio at or above this counts as a yes
+  passConfidence: 0.25, // how much a pass (see PASSED) counts: a quarter of the weakest watched "no"
   sweepCount: 12,
   seed: 1,
 };
@@ -69,6 +77,7 @@ export function preferenceOf(watchRatio, settings) {
  */
 export function confidenceOf(watchRatio, settings) {
   if (watchRatio === UNSEEN) return 0;
+  if (watchRatio === PASSED) return settings.passConfidence;
   return 1 + settings.confidenceGain * Math.abs(watchRatio - settings.likeThreshold);
 }
 

@@ -3,7 +3,7 @@
 // reports that one number, plus whether you tapped the heart. It knows
 // nothing about the model.
 
-const SWIPE_DISTANCE = 60; // pixels of upward drag that count as a swipe
+const SWIPE_DISTANCE = 60; // pixels of sideways drag that count as a swipe
 const TAP_SLOP = 8; // a press that moves less than this is a tap, not a drag
 const LIKE_PAUSE_MS = 700; // lets you see your dot move before the next card arrives
 
@@ -33,7 +33,7 @@ export class Feed {
     this.playing = false;
     this.locked = true; // true while no reaction is accepted
     this.onScreen = true;
-    this.dragStartY = null;
+    this.dragStart = null; // where a press on the card began, or null
     this.lastTick = performance.now();
 
     this.buttons[0].addEventListener('click', () => this.next());
@@ -132,26 +132,35 @@ export class Feed {
         : percent === 0 ? 'tap the video to watch it' : `paused at ${percent}%`;
   }
 
+  /**
+   * A sideways drag moves on to the next video; a press that does not move is
+   * a tap. The swipe is sideways so that an up-or-down drag on a phone still
+   * scrolls the page. (The browser sends "pointercancel" when it takes a drag
+   * over for scrolling, and we then do nothing.)
+   */
   listenForSwipesAndTaps() {
     this.card.addEventListener('pointerdown', (event) => {
-      this.dragStartY = event.clientY;
-      this.card.setPointerCapture(event.pointerId);
+      this.dragStart = { x: event.clientX, y: event.clientY };
     });
     this.card.addEventListener('pointermove', (event) => {
-      if (this.dragStartY === null) return;
-      const dragged = Math.min(0, event.clientY - this.dragStartY);
-      this.face.style.transform = `translateY(${dragged}px)`;
+      if (this.dragStart === null) return;
+      this.face.style.transform = `translateX(${event.clientX - this.dragStart.x}px)`;
     });
-    const release = (event) => {
-      if (this.dragStartY === null) return;
-      const dragged = event.clientY - this.dragStartY;
-      this.dragStartY = null;
+    this.card.addEventListener('pointerup', (event) => {
+      if (this.dragStart === null) return;
+      const sideways = event.clientX - this.dragStart.x;
+      const upOrDown = event.clientY - this.dragStart.y;
+      this.dragStart = null;
       this.face.style.transform = '';
-      if (dragged < -SWIPE_DISTANCE) this.next();
-      else if (event.type === 'pointerup' && Math.abs(dragged) < TAP_SLOP) this.togglePlay();
+      if (Math.abs(sideways) > SWIPE_DISTANCE) this.next();
+      else if (Math.abs(sideways) < TAP_SLOP && Math.abs(upOrDown) < TAP_SLOP) this.togglePlay();
+    });
+    const abandon = () => {
+      this.dragStart = null;
+      this.face.style.transform = '';
     };
-    this.card.addEventListener('pointerup', release);
-    this.card.addEventListener('pointercancel', release);
+    this.card.addEventListener('pointercancel', abandon);
+    this.card.addEventListener('pointerleave', abandon);
   }
 
   /**

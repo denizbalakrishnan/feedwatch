@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  UNSEEN, DEFAULT_SETTINGS, preferenceOf, confidenceOf, solveFactor, foldInUser, trainALS, trainingLoss,
+  UNSEEN, PASSED, DEFAULT_SETTINGS, preferenceOf, confidenceOf, solveFactor, foldInUser, trainALS, trainingLoss,
   holdOutCells, meanSquaredMiss, precisionAtTop, scoreItems, bestUnseen,
 } from '../js/mf.js';
 import { dot } from '../js/linalg.js';
@@ -35,6 +35,19 @@ test('confidence is 0 for unseen and grows with distance from the threshold', ()
   assert.equal(confidenceOf(UNSEEN, settings), 0);
   assert.ok(confidenceOf(0.05, settings) > confidenceOf(0.6, settings), 'an instant skip is a firmer no than a near miss');
   assert.ok(confidenceOf(2.0, settings) > confidenceOf(0.8, settings), 'a re-watch is a firmer yes than a bare pass');
+});
+
+test('a pass is a no that counts far less than starting a video and giving up on it', () => {
+  assert.equal(preferenceOf(PASSED, settings), 0);
+  assert.equal(confidenceOf(PASSED, settings), settings.passConfidence);
+  assert.ok(confidenceOf(PASSED, settings) < confidenceOf(0.69, settings), 'weaker than the weakest watched no');
+  const items = randomFactors(30, 3, 37);
+  const appeal = new Float64Array(30).fill(0.6);
+  const reactTo7 = (ratio) => { const mine = new Float32Array(30).fill(UNSEEN); mine[7] = ratio; return mine; };
+  const afterPass = foldInUser(items, appeal, reactTo7(PASSED), settings).vector;
+  const afterQuitting = foldInUser(items, appeal, reactTo7(0.05), settings).vector;
+  assert.ok(dot(afterPass, items[7]) < 0, 'a pass still nudges you away from that video');
+  assert.ok(dot(afterPass, afterPass) < dot(afterQuitting, afterQuitting) / 4, 'but much less than quitting it does');
 });
 
 test('solveFactor satisfies the ridge-regression equation it claims to solve', () => {

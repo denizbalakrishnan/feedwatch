@@ -23,16 +23,13 @@
   <link rel="modulepreload" href="js/lab.js">
 </head>
 <body>
-  <!-- Our own three icons, drawn once here and reused with <use>. -->
+  <!-- Our own icons, drawn once here and reused with <use>. -->
   <svg width="0" height="0" class="visually-hidden" aria-hidden="true">
     <symbol id="icon-heart" viewBox="0 0 24 24">
       <path fill="currentColor" d="M12 21C12 21 3 14.5 3 8.5C3 5.5 5.2 3.5 7.8 3.5C9.6 3.5 11.1 4.5 12 6C12.9 4.5 14.4 3.5 16.2 3.5C18.8 3.5 21 5.5 21 8.5C21 14.5 12 21 12 21Z"/>
     </symbol>
-    <symbol id="icon-down" viewBox="0 0 24 24">
-      <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
-    </symbol>
-    <symbol id="icon-up" viewBox="0 0 24 24">
-      <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/>
+    <symbol id="icon-next" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/>
     </symbol>
     <symbol id="icon-play" viewBox="0 0 24 24">
       <path fill="currentColor" d="M8 5v14l11-7z"/>
@@ -42,19 +39,19 @@
   <div class="page">
     <header class="hero">
       <h1>This feed has never watched a single video.</h1>
-      <p>It only knows who watched what. Like a few, skip the rest, and watch your dot move.</p>
+      <p>It only knows who watched what. Like a few made-up videos, skip the rest, and watch your dot move.</p>
     </header>
 
     <main class="stage">
       <section class="feed" id="feed" aria-labelledby="feedHeading">
         <h2 class="visually-hidden" id="feedHeading">Video feed</h2>
         <div class="card" id="card" tabindex="0" role="group"
-             aria-label="Video card. Press Enter to watch it, the down arrow for the next video, or L to like.">
+             aria-label="Video card. Press Enter to watch it, an arrow key for the next video, or L to like.">
           <div class="card-face loading" id="cardFace">
             <div class="card-icon" id="cardIcon" aria-hidden="true"></div>
             <button type="button" class="card-heart" id="cardHeart" aria-label="Like this video"><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg></button>
             <div class="swipe-hint" id="swipeHint" aria-hidden="true">
-              <svg class="icon"><use href="#icon-up"/></svg> swipe up to skip
+              swipe sideways to skip <svg class="icon"><use href="#icon-next"/></svg>
             </div>
             <div class="card-strip">
               <div class="card-title" id="cardTitle">Training the model…</div>
@@ -67,10 +64,11 @@
           </div>
         </div>
         <div class="feed-buttons">
-          <button type="button" id="nextButton" disabled>Next <svg class="icon" aria-hidden="true"><use href="#icon-up"/></svg></button>
+          <button type="button" id="nextButton" disabled>Skip <svg class="icon" aria-hidden="true"><use href="#icon-next"/></svg></button>
           <button type="button" id="likeButton" class="like" disabled><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg> Like</button>
         </div>
         <p class="reading" id="reading" aria-live="polite">Nothing has been sent to the model yet.</p>
+        <p class="why" id="why"></p>
       </section>
 
       <section class="map-panel" aria-labelledby="mapHeading">
@@ -79,6 +77,10 @@
           <input type="checkbox" id="reveal" disabled>
           <span>Reveal what the model never saw</span>
         </label>
+        <p class="run-status" id="runStatus" hidden>
+          <span id="runText" aria-live="polite"></span>
+          <button type="button" id="backToExplore" hidden>Back to the exploration controls</button>
+        </p>
         <canvas id="map" role="img" aria-label="Taste map. Every dot is a video and the bright dot is you."></canvas>
         <p class="reveal-note" id="revealNote">Every dot is one video. The bright dot is you. The dashed line points at the video on the card.</p>
         <p class="map-caption" id="mapCaption">Training the model in your browser…</p>
@@ -102,21 +104,21 @@
             </fieldset>
             <label class="slider" id="exploreAmountRow" hidden>
               <span>How much</span>
-              <input type="range" id="exploreAmount" min="0" max="100" value="50">
+              <input type="range" id="exploreAmount" min="0" max="100" value="25">
               <span class="slider-note" id="exploreAmountText"></span>
             </label>
           </div>
           <div>
             <p class="meter-label" id="bubbleText" aria-live="polite"></p>
             <div class="meter" aria-hidden="true"><div class="meter-fill" id="bubbleFill"></div></div>
-            <p>Swiping 30 times by hand is slow, so let a pretend viewer do it. They are a brand-new person who likes one topic and skips the rest. Run it once with exploration off and once with it on, and compare.</p>
+            <p>Swiping 30 times by hand is slow, so let a pretend viewer do it. They are a brand-new person who likes one topic and skips the rest. This replaces your own history, and the page jumps up to the map so you can watch. Run it once with exploration off and once with it on; each result is kept below.</p>
             <div class="inline-controls">
               <label for="autopilotTopic">A new fan of</label>
               <select id="autopilotTopic"></select>
               <button type="button" id="autopilotButton">Run 30 swipes</button>
-              <button type="button" id="resetButton">Start again as a new person</button>
+              <button type="button" id="resetButton">Start again as yourself</button>
             </div>
-            <p id="autopilotText" aria-live="polite"></p>
+            <ul class="run-log" id="autopilotLog" aria-label="Results of the runs so far"></ul>
           </div>
         </div>
       </details>
@@ -138,7 +140,7 @@
       </details>
 
       <details class="panel" id="labPanel">
-        <summary>How do we know it works? <span class="summary-note">change the crowd or the model, retrain, and mark it</span></summary>
+        <summary>How do we know it works? <span class="summary-note">change the crowd or the model, retrain, and check its work</span></summary>
         <div class="panel-body">
           <div>
             <p>This crowd is simulated, so every video has a hidden topic we know and the model does not. That lets us mark the model's work, which nobody can do with real viewers.</p>

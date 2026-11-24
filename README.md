@@ -48,7 +48,7 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 - The two-tower model reads one tag per video, and that tag is the video's topic: the very thing the first model has to work out for itself. So the accuracy comparison between the two is not an even race, and the page says so. Real two-tower models read the picture, the sound and the caption.
 - Our two-tower model keeps the 2019 paper's correction for popular videos, but leaves out scaling vectors to length 1, predicting a person's next video rather than any liked one, and removing from a batch the "wrong answers" that the person in fact liked.
 - The confidence formula is our own. An instant skip counts about twice as firmly as watching a video to the end, and a like counts most of all.
-- A video only "plays" when you tap it. A real feed plays by itself; here that made time spent reading the page count as time spent watching.
+- A video only "plays" when you tap it. A real feed plays by itself; here that made time spent reading the page count as time spent watching. Because of this, skipping a video you never started counts as only a faint "no" (a quarter of the weakest watched one), while starting a video and giving up on it counts firmly.
 - The "explore where unsure" setting treats the noise in one reaction as 1 and the video vectors as exactly known, so its spread is a dial, not a calibrated probability.
 - With no history at all, the two-tower model gives everybody the same single guess, which tends to be one topic. The first model falls back on general appeal and gives a mix.
 - A "like" is counted as watching the video twice over.
