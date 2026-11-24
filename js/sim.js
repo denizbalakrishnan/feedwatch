@@ -15,9 +15,14 @@ import { dot, norm } from './linalg.js';
  * with the ones next to it, and the last wraps round to the first.
  * They label the reveal; the model never sees them.
  */
-export const TOPIC_NAMES = ['Dance', 'Music', 'Comedy', 'Gaming', 'Football', 'Travel', 'Cooking', 'DIY', 'Pets', 'Make-up'];
+export const TOPIC_NAMES = ['Dance', 'Music', 'Comedy', 'Gaming', 'Football', 'Travel', 'Cooking', 'DIY'];
 
-/** How many topics either side of a person's favourite they still enjoy (in topic steps). */
+/**
+ * How quickly a person's enjoyment falls off as a topic gets further round
+ * the ring from where they stand: the width of a bell curve, in topic steps.
+ * It is not a cut-off. At 1.2, a person ends up saying yes to about three
+ * neighbouring topics.
+ */
 export const TASTE_WIDTH = 1.2;
 
 /** The longest watch we record, as a multiple of the video's length. */

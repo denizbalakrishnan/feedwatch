@@ -23,7 +23,7 @@
 import { zeroMatrix, dot } from './linalg.js';
 import { gaussian } from './random.js';
 
-/** Sizes and training settings. See LEARN/decisions.md for why each default. */
+/** Sizes and training settings, picked by trial so that it trains in about a second in a browser. */
 export const TWO_TOWER_DEFAULTS = {
   embeddingSize: 8, // numbers in a video's ID list and in its history list
   hiddenSize: 16, // units in each tower's hidden layer
@@ -31,7 +31,7 @@ export const TWO_TOWER_DEFAULTS = {
   batchSize: 64,
   stepCount: 600,
   learningRate: 0.01,
-  historyLength: 10, // at most this many liked videos describe a person
+  historyLength: 10, // in training, at most this many liked videos describe a person (in use, all their likes do)
   hideIdRate: 0.25, // how often a video's own ID is hidden in training (see trainTwoTower)
   hideHistoryRate: 0.1, // how often the person's whole history is hidden in training
 };

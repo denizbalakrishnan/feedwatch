@@ -172,7 +172,7 @@ export class Feed {
     const tag = event.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     if (!this.onScreen || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (event.key.startsWith('Arrow')) { // any of the four arrow keys
       event.preventDefault();
       this.next();
     } else if (event.key === 'l' || event.key === 'L') {

@@ -151,7 +151,7 @@ export class TasteMap {
     this.draw();
   }
 
-  /** Map units to canvas pixels. The centre of the canvas is the average person. */
+  /** Map units to canvas pixels. The centre of the canvas is the all-zeros list: a person nothing is known about. */
   toScreen(point) {
     const scale = Math.min(this.width, this.height) / 2 / this.reach;
     let x = point[0];
@@ -299,7 +299,7 @@ export class TasteMap {
   drawUser(context) {
     const [x, y] = this.toScreen(this.user);
     const glow = context.createRadialGradient(x, y, 2, x, y, 30);
-    glow.addColorStop(0, `${this.theme.you}99`); // the same colour, 60% see-through
+    glow.addColorStop(0, `${this.theme.you}99`); // the same colour at 60% strength
     glow.addColorStop(1, `${this.theme.you}00`); // fading to fully see-through
     context.fillStyle = glow;
     context.beginPath();

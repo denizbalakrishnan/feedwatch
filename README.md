@@ -33,7 +33,7 @@ This README is a first draft. The project is still being built for the Global Vi
 
 ## What is computed and what is drawn by hand
 
-Computed in your browser, from the grid and from your reactions: the crowd, the model, your vector, every score, the position of every dot, the bubble meter, the error chart and the recovery score. Nothing is pre-trained and nothing is fetched after the page loads.
+Computed in your browser, from the grid and from your reactions: the crowd, the model, your vector, every score, the position of every dot, the bubble meter, the error chart and the recovery score. Nothing is pre-trained. Nothing is fetched after the page loads, except our own real-data file when you press the button in the "Real people" panel.
 
 Drawn by hand: the card art, titles and icons (made up from each video's topic, and never shown to the model); the overall size of your dot's movement relative to the videos (people's and videos' lists of numbers come out at different typical sizes, so for drawing only we scale your dot to match the videos).
 
@@ -63,7 +63,7 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 | The Adam optimiser (Kingma & Ba, 2015) | `adamStep` in `js/twotower.js` | Trains reliably without hand-tuning a step size for every number |
 | KuaiRec dataset (Gao et al., CIKM 2022, https://kuairec.com, CC BY-SA 4.0) | `data/kuairec_shown.json`, the "Real people" panel | Real short-video data that may be shared; our file is a subsample made by `scripts/build_data.py` and is shared under the same licence |
 | mulberry32 random number recipe (Tommy Ettinger, public domain) | `js/random.js` | A few lines, repeatable from a seed |
-| Okabe-Ito colour palette | `js/ui.js` | Stays distinct for colour-blind viewers |
+| Seven colours from the Okabe-Ito palette, and two from Paul Tol's "muted" set for the ten real categories | `js/ui.js` | They stay distinct for colour-blind viewers; topics are also named in words |
 | Claude Code (AI coding tool) | Throughout | Used to write code and tests, which we then read, questioned and learned to explain |
 
 No libraries, frameworks or build tools are used by the site.

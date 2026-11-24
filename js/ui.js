@@ -1,7 +1,8 @@
 // ui.js: wires the whole page together.
 // It asks mf.js, linalg.js and explore.js for every number and hands the
 // results to the feed card (feed.js), the map (map.js) and the chart
-// (lab.js). Training runs in train.worker.js. No model arithmetic happens here.
+// (lab.js). Training runs in train.worker.js. The only sums done here are
+// dot products of finished vectors, for the lines of text the page shows.
 
 import {
   DEFAULT_SETTINGS, UNSEEN, PASSED, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
@@ -16,9 +17,10 @@ import { TasteMap } from './map.js';
 import { Feed } from './feed.js';
 import { drawErrorChart } from './lab.js';
 
-// The Okabe-Ito palette: eight colours chosen to stay distinct for colour-blind viewers.
+// Seven colours from the Okabe-Ito palette, chosen to stay distinct for colour-blind viewers, plus a
+// light grey (the palette's own eighth colour is black, which would vanish on our dark page).
 const CATEGORY_COLOURS = ['#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2', '#D55E00', '#CC79A7', '#BBBBBB'];
-const REAL_COLOURS = [...CATEGORY_COLOURS, '#882255', '#44AA99']; // the real data has ten categories
+const REAL_COLOURS = [...CATEGORY_COLOURS, '#882255', '#44AA99']; // the real data has ten categories; two more from Paul Tol's "muted" set
 // The real grid holds 1s and 0s, so every cell counts equally (confidenceGain 0), and 16 numbers per video.
 const REAL_SETTINGS = { ...DEFAULT_SETTINGS, factorCount: 16, confidenceGain: 0, sweepCount: 8 };
 const NO_TURN = [[1, 0], [0, 1]];
@@ -62,7 +64,7 @@ const state = {
   // the second model (two-tower); null while it is still training
   tower: null,
   towerItemVectors: null,
-  towerView: null, // { axes, turn, userScale } for the second model's own map
+  towerView: null, // { axes, turn } for the second model's own map
   towerUserVector: null,
 
   // you
@@ -431,6 +433,9 @@ function rebuildEvidence() {
 
 /** Forgets everything you did, as if a brand-new person had opened the feed. */
 function forgetPerson() {
+  state.isPretendFan = false; // whoever comes next is you again, not the pretend fan
+  tasteMap.setUserLabel('you');
+  find('runStatus').hidden = true;
   state.reactions.clear();
   state.shownMarks = new Float32Array(state.videos.length).fill(UNSEEN);
   state.evidence = new Float32Array(state.videos.length).fill(UNSEEN);
@@ -524,9 +529,10 @@ function explainChoice(item) {
 }
 
 /**
- * Fast-forwards the feed with a simple pretend viewer: they like every video
- * of one topic and pass on everything else without watching. The model is
- * still only told likes and passes; the topic is the pretend viewer's secret.
+ * Fast-forwards the feed with a simple pretend viewer: they watch to the end
+ * and like every video of one topic, and pass on everything else without
+ * watching. The model is still only told watch ratios, likes and passes; the
+ * topic is the pretend viewer's secret.
  */
 function runAutopilot(likedCategory, swipesLeft) {
   const name = state.categories[likedCategory].name;
@@ -535,7 +541,8 @@ function runAutopilot(likedCategory, swipesLeft) {
     return;
   }
   const video = state.currentVideo;
-  recordReaction(video, 0, video.category === likedCategory);
+  const isFavourite = video.category === likedCategory;
+  recordReaction(video, isFavourite ? 1 : 0, isFavourite);
   dealNextCard();
   find('runText').textContent = `A pretend ${name} fan is swiping: ${AUTOPILOT_SWIPES - swipesLeft + 1} of ${AUTOPILOT_SWIPES}…`;
   setTimeout(() => runAutopilot(likedCategory, swipesLeft - 1), reducedMotion ? 0 : AUTOPILOT_STEP_MS);
@@ -574,9 +581,6 @@ function setAutopilotBusy(busy) {
 }
 
 function startAgain() {
-  state.isPretendFan = false;
-  tasteMap.setUserLabel('you');
-  find('runStatus').hidden = true;
   forgetPerson();
   find('reading').textContent = 'Started again as a brand-new person.';
   dealNextCard();

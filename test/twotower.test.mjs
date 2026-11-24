@@ -133,7 +133,7 @@ test('a hidden ID sends no gradient to that video\'s ID numbers', () => {
   assert.ok(gradients.itemEmbedding[0].some((value) => value !== 0), 'video 0 did not');
 });
 
-test('the popularity correction lowers a popular wrong answer\'s pull, and changes nothing when all are equal', () => {
+test('the popularity correction changes the loss only when videos differ in popularity', () => {
   const { model, batch, itemTags } = tinyWorld();
   const plain = batchLossAndGradients(model, batch, itemTags, zerosLike(model));
   const allEqual = batchLossAndGradients(model, batch, itemTags, zerosLike(model), new Float64Array(7).fill(-2));

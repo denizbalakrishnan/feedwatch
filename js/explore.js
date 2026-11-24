@@ -1,4 +1,5 @@
-// explore.js: three ways to choose the next video, and a meter for the bubble.
+// explore.js: two ways to choose the next video that explore, and a meter for
+// the bubble. (The plain way, always the top score, is bestUnseen in mf.js.)
 //
 // Always showing the top-scoring video ("greedy") looks sensible, but the feed
 // then only ever learns about the corner of the map you are already in. That

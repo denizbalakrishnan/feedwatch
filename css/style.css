@@ -1,6 +1,6 @@
 /* style.css: the look of the page. No behaviour lives here. */
 
-/* ---------- design tokens: every colour, gap and timing is named once ---------- */
+/* ---------- design tokens: the main colours, gaps and timings are named once ---------- */
 
 :root {
   --color-background: #0d1220;
@@ -274,7 +274,7 @@ a { color: var(--color-you); }
 
 .slider { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
 .slider[hidden] { display: none; }
-.slider input { width: 100%; min-height: 32px; accent-color: var(--color-you); cursor: pointer; }
+.slider input { width: 100%; min-height: 44px; accent-color: var(--color-you); cursor: pointer; }
 .slider-note { grid-column: 1 / -1; color: var(--color-text-muted); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
 
 .meter { height: 14px; margin: var(--space-2) 0; border-radius: 7px; overflow: hidden; background: var(--color-surface-raised); }
@@ -325,5 +325,5 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .card-face.entering, .card-face.loading, .reveal.nudge, .swipe-hint, .card.playing .card-icon { animation: none; }
-  .card-heart, .card-play, button, .vector-fill, .panel summary::before { transition: none; }
+  .card-heart, .card-play, button, .vector-fill, .meter-fill, .reveal, .panel summary::before { transition: none; }
 }

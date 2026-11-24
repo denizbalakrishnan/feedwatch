@@ -6,6 +6,8 @@
 //   'sweep'  after every training sweep of the first model (for the error chart)
 //   'done'   the first model (matrix factorisation), ready to use
 //   'tower'  the second model (two-tower), a moment later
+// and, when the "Real people" panel asks for it:
+//   'realSweep' and 'real'  the first model trained on the real grid
 
 import { simulateCrowd } from './sim.js';
 import { UNSEEN, trainALS, holdOutCells, meanSquaredMiss, precisionAtTop, preferenceOf } from './mf.js';
@@ -106,7 +108,6 @@ function trainSecondModel(jobId, crowd, split, firstModel, modelSettings, seed) 
     stepCount: lossHistory.length,
     tower,
     itemVectors,
-    userVectors,
     topCount: TOP_COUNT,
     yesShare: split.heldOut.length ? hiddenYes / split.heldOut.length : 0,
     peopleMarked: firstMark.peopleMarked, // the same people for both models

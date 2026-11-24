@@ -41,7 +41,7 @@ export const UNSEEN = -1;
  */
 export const PASSED = -2;
 
-/** The numbers a user can change in the lab. See LEARN/decisions.md for why each default. */
+/** The model's settings. The lab lets you change factorCount; the rest are fixed. None was finely tuned. */
 export const DEFAULT_SETTINGS = {
   factorCount: 8, // k
   regularisation: 2, // lambda

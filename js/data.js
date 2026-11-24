@@ -9,7 +9,7 @@ import { TOPIC_NAMES } from './sim.js';
 /** The crowd the page opens with. The lab's sliders change these. */
 export const DEFAULT_CROWD = { userCount: 300, itemCount: 480, topicCount: 8, noise: 0.25, sparsity: 0, seed: 2 };
 
-const TOPIC_ICONS = ['💃', '🎵', '😂', '🎮', '⚽', '✈️', '🍳', '🔨', '🐾', '💄'];
+const TOPIC_ICONS = ['💃', '🎵', '😂', '🎮', '⚽', '✈️', '🍳', '🔨'];
 
 const TITLE_STEMS = [
   ['Street dance', 'Dance challenge', 'Studio routine', 'Slow-mo spin'],
@@ -20,8 +20,6 @@ const TITLE_STEMS = [
   ['Night market', 'Mountain trail', 'Hidden beach', 'City in a day'],
   ['One-pan dinner', 'Street food', 'Five-minute snack', 'Noodle pull'],
   ['Desk makeover', 'Quick fix', 'Shelf build', 'Paint flip'],
-  ['Puppy zoomies', 'Cat versus box', 'Parrot talk', 'Rescue update'],
-  ['Everyday look', 'Glow routine', 'Bold liner', 'Nail art'],
 ];
 
 /**
