@@ -4,7 +4,7 @@
 
 A short-video feed has never watched a single one of its videos. It cannot see a dance, hear a joke or read a caption. All it is given is a grid of numbers: who watched what, and for how long. From that grid alone it gives every person and every video a short list of numbers, and those lists are enough to decide what plays next.
 
-This project is a working version of that mechanism that you can take apart. It runs entirely in your browser: 300 simulated people, 480 videos, about 130,000 watch times, trained in under a second in the tab you are looking at.
+This project is a working version of that mechanism that you can take apart. It runs entirely in your browser: 300 simulated people, 480 videos, 144,000 watch times (one in ten is hidden from the model so it can be tested), trained in under a second in the tab you are looking at.
 
 Built for the Global Virtual Hackathon 2026 (theme: Unveiling Technology).
 
@@ -15,7 +15,7 @@ Built for the Global Virtual Hackathon 2026 (theme: Unveiling Technology).
 - **Switch exploration on and off.** With it off, a fan of one topic is sealed into a bubble within 20 swipes. Thompson sampling keeps showing them things the model is unsure about.
 - **Change what counts as evidence.** Likes only, watch time only, or both.
 - **Change the crowd and the model, and retrain.** Fewer people, more noise, more gaps, 2 to 16 numbers per video. A chart shows the error on cells the model trained on and on cells hidden from it, and a score marks the map against the hidden topics.
-- **Upload a brand-new video.** The first model cannot place a video nobody has watched. A second, modern kind of model (a two-tower neural network, trained in your browser with backpropagation we wrote by hand) places it at once from its tags. Both models are marked on the same hidden cells.
+- **Upload a brand-new video.** The first model cannot place a video nobody has watched. A second, modern kind of model (a two-tower neural network, trained in your browser with hand-written backpropagation, no library) places it at once from its tags. Both models are marked on the same hidden cells.
 
 ## How it works
 
@@ -62,6 +62,8 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 | The per-item bias term (Koren, Bell & Volinsky, 2009) | `js/mf.js` | Separates "everyone watches this" from "you in particular would" |
 | The two-tower design with in-batch sampled softmax (Covington et al., 2016; Yi et al., 2019) | `js/twotower.js` | It is how large feeds place brand-new videos |
 | The Adam optimiser (Kingma & Ba, 2015) | `adamStep` in `js/twotower.js` | Trains reliably without hand-tuning a step size for every number |
+| Epsilon-greedy and Thompson sampling (Thompson, 1933; see the tutorial by Russo et al., 2018) | `js/explore.js` | The two standard ways to make a feed try things it is unsure about |
+| Textbook methods: Cholesky factorisation, principal component analysis by power iteration, Procrustes alignment, the Box-Muller recipe for bell-curve random numbers | `js/linalg.js`, `js/random.js` | Each is the simplest exact method for its job, short enough to read in full |
 | KuaiRec dataset (Gao et al., CIKM 2022, https://kuairec.com, CC BY-SA 4.0) | `data/kuairec_shown.json`, the "Real people" panel | Real short-video data that may be shared; our file is a subsample made by `scripts/build_data.py` and is shared under the same licence |
 | mulberry32 random number recipe (Tommy Ettinger, public domain) | `js/random.js` | A few lines, repeatable from a seed |
 | Seven colours from the Okabe-Ito palette, and two from Paul Tol's "muted" set for the ten real categories | `js/ui.js` | They stay distinct for colour-blind viewers; topics are also named in words |
@@ -79,6 +81,25 @@ python -m http.server 8123
 Then open http://localhost:8123. To run the tests: `node --test`.
 
 To rebuild the real-data file, download `KuaiRec.zip` from https://kuairec.com and run `python scripts/build_data.py PATH/TO/KuaiRec.zip`. The raw download is not kept in this repository. The source zip we submitted leaves out `data/` too, because the form asks for our own code only, so the "Real people" panel needs the live site or this repository.
+
+## The code
+
+| File | What is in it |
+|---|---|
+| `js/random.js`, `js/linalg.js` | Repeatable random numbers; the linear algebra (Cholesky, principal axes, Procrustes) |
+| `js/mf.js` | The first model: preference, confidence, alternating least squares, fold-in, scores, the held-out test |
+| `js/sim.js` | The simulated crowd and the topic-agreement score |
+| `js/explore.js` | Epsilon-greedy, Thompson sampling, the variety meter |
+| `js/twotower.js` | The second model: both towers, the loss, the backward pass, Adam |
+| `js/train.worker.js` | Runs training away from the page's main thread |
+| `js/data.js` | Crowd settings, made-up video titles, loading the real-data file |
+| `js/feed.js`, `js/map.js`, `js/lab.js` | The video card, the taste map, the error chart |
+| `js/ui.js` | Wires the page together: your reactions, the next video, every panel |
+| `index.html`, `css/style.css` | The page and its styles |
+| `test/` | 44 tests of the maths files, run with `node --test`; they include checks of every gradient against a numerical estimate |
+| `scripts/build_data.py`, `scripts/make_zip.sh` | Builds the real-data file; builds the source zip |
+
+The first six files hold the mechanism. They never touch the page, so they can be tested on their own.
 
 ## Licence
 

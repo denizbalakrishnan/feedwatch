@@ -580,6 +580,8 @@ function finishAutopilot(likedCategory) {
 
 function setAutopilotBusy(busy) {
   for (const id of ['autopilotButton', 'resetButton', 'trainButton']) find(id).disabled = busy;
+  // The last card of a run is already on screen; without this its entrance animation would replay once.
+  if (!busy) for (const face of document.querySelectorAll('.card-face.entering')) face.classList.remove('entering');
   document.body.classList.toggle('fast-forward', busy); // the styles switch the card's entrance animation off
 }
 
