@@ -5,7 +5,7 @@
 
 const SWIPE_DISTANCE = 60; // pixels of sideways drag that count as a swipe
 const TAP_SLOP = 8; // a press that moves less than this is a tap, not a drag
-const LIKE_PAUSE_MS = 700; // lets you see your dot move before the next card arrives
+const LIKE_PAUSE_MS = 700; // lets you see your dot set off before the next card arrives
 
 export class Feed {
   /**

@@ -6,11 +6,11 @@ A short-video feed has never watched a single one of its videos. It cannot see a
 
 This project is a working version of that mechanism that you can take apart. It runs entirely in your browser: 300 simulated people, 480 videos, about 130,000 watch times, trained in under a second in the tab you are looking at.
 
-This README is a first draft. The project is still being built for the Global Virtual Hackathon 2026 (theme: Unveiling Technology).
+Built for the Global Virtual Hackathon 2026 (theme: Unveiling Technology).
 
 ## What you can do with it
 
-- **Swipe and like.** Every reaction is sent to the model as one number (the share of the video you watched). Your dot on the taste map moves straight away.
+- **Swipe and like.** Every reaction is sent to the model as one number: the share of the video you watched, a fixed 2.0 for a like, or a "passed" marker if you skipped without playing it. Your dot on the taste map moves straight away.
 - **Reveal what the model never saw.** One switch colours every video by its topic. The topics form clear groups, although the model was never told a single topic.
 - **Switch exploration on and off.** With it off, a fan of one topic is sealed into a bubble within 20 swipes. Thompson sampling keeps showing them things the model is unsure about.
 - **Change what counts as evidence.** Likes only, watch time only, or both.
@@ -44,8 +44,9 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
   - In the larger part, which records which videos the app chose to show each person, topic does show up: 38% against 10% in the model's 16 dimensions. But on a flat two-dimensional map it falls back to 10%.
   - The "Real people" panel runs that second test live, on 1,000 real people and 800 real videos, so you can see the muddle for yourself.
   - We would rather show a simulation that says it is one than a real-data picture that does not show what we claim.
+  - What you can check from this repository: the 38% and 10% come from the "Real people" panel, live. The seconds-watched figure and the 14% came from our own analysis of the raw KuaiRec download while building; that analysis code is not included here.
 - Real platforms use many more signals, far bigger models and several ranking stages.
-- The two-tower model reads one tag per video, and that tag is the video's topic: the very thing the first model has to work out for itself. So the accuracy comparison between the two is not an even race, and the page says so. Real two-tower models read the picture, the sound and the caption.
+- The two-tower model reads one tag per video, and that tag is the video's topic: the very thing the first model has to work out for itself. So the accuracy comparison between the two is not an even race, and the page says so. Real two-tower models read the picture, the sound and the caption. Every video it trained on had exactly one tag; the upload panel lets you tick several, which is beyond anything it has seen.
 - Our two-tower model keeps the 2019 paper's correction for popular videos, but leaves out scaling vectors to length 1, predicting a person's next video rather than any liked one, and removing from a batch the "wrong answers" that the person in fact liked.
 - The confidence formula is our own. An instant skip counts about twice as firmly as watching a video to the end, and a like counts most of all.
 - A video only "plays" when you tap it. A real feed plays by itself; here that made time spent reading the page count as time spent watching. Because of this, skipping a video you never started counts as only a faint "no" (a quarter of the weakest watched one), while starting a video and giving up on it counts firmly.
@@ -65,6 +66,7 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 | mulberry32 random number recipe (Tommy Ettinger, public domain) | `js/random.js` | A few lines, repeatable from a seed |
 | Seven colours from the Okabe-Ito palette, and two from Paul Tol's "muted" set for the ten real categories | `js/ui.js` | They stay distinct for colour-blind viewers; topics are also named in words |
 | Claude Code (AI coding tool) | Throughout | Used to write code and tests, which we then read, questioned and learned to explain |
+| Playwright and ffmpeg | Not in the site; used while building | To test the page at laptop and phone sizes and to record the demo video |
 
 No libraries, frameworks or build tools are used by the site.
 
@@ -76,7 +78,7 @@ python -m http.server 8123
 
 Then open http://localhost:8123. To run the tests: `node --test`.
 
-To rebuild the real-data file, download `KuaiRec.zip` from https://kuairec.com and run `python scripts/build_data.py PATH/TO/KuaiRec.zip`. The raw download is not kept in this repository.
+To rebuild the real-data file, download `KuaiRec.zip` from https://kuairec.com and run `python scripts/build_data.py PATH/TO/KuaiRec.zip`. The raw download is not kept in this repository. The source zip we submitted leaves out `data/` too, because the form asks for our own code only, so the "Real people" panel needs the live site or this repository.
 
 ## Licence
 

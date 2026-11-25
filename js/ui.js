@@ -1,8 +1,9 @@
 // ui.js: wires the whole page together.
 // It asks mf.js, linalg.js and explore.js for every number and hands the
 // results to the feed card (feed.js), the map (map.js) and the chart
-// (lab.js). Training runs in train.worker.js. The only sums done here are
-// dot products of finished vectors, for the lines of text the page shows.
+// (lab.js). Training runs in train.worker.js. This file trains nothing and
+// solves nothing itself: it calls the maths files. The only sums written out
+// here are small ones for display (a dot product, an average distance).
 
 import {
   DEFAULT_SETTINGS, UNSEEN, PASSED, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
@@ -436,6 +437,7 @@ function forgetPerson() {
   state.isPretendFan = false; // whoever comes next is you again, not the pretend fan
   tasteMap.setUserLabel('you');
   find('runStatus').hidden = true;
+  find('reading').textContent = 'Nothing has been sent to the model yet.';
   state.reactions.clear();
   state.shownMarks = new Float32Array(state.videos.length).fill(UNSEEN);
   state.evidence = new Float32Array(state.videos.length).fill(UNSEEN);
@@ -578,6 +580,7 @@ function finishAutopilot(likedCategory) {
 
 function setAutopilotBusy(busy) {
   for (const id of ['autopilotButton', 'resetButton', 'trainButton']) find(id).disabled = busy;
+  document.body.classList.toggle('fast-forward', busy); // the styles switch the card's entrance animation off
 }
 
 function startAgain() {

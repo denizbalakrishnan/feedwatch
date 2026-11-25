@@ -170,7 +170,7 @@ export function projectOntoAxes(vector, axes, centre = null) {
  * layout, finds the turn or mirror-flip that makes the new layout sit as
  * close as possible to the old one (least total squared distance).
  * Why: retraining can hand back the same map rotated or mirrored, because
- * the model only cares about angles between vectors. Without this the map
+ * turning or mirroring every vector together changes no score. Without this the map
  * would jump every time. Returns a 2x2 matrix to apply to the new points.
  * How: in 2-D the only candidates are "rotate by some angle" or "mirror,
  * then rotate". Each has a best angle with a closed form. We keep the better.

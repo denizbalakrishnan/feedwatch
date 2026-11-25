@@ -35,6 +35,12 @@
 
 * { box-sizing: border-box; }
 
+/* The "hidden" attribute must always win, even over a rule that sets display (as our button rule does). */
+[hidden] { display: none !important; }
+
+/* During a fast-forward run a new card arrives every 90 ms, so the entrance animation would never finish. */
+.fast-forward .card-face.entering { animation: none; }
+
 body {
   margin: 0;
   background:

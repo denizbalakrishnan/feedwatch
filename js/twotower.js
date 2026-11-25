@@ -285,14 +285,16 @@ export function trainTwoTower(model, likedByUser, itemTags, settings, random, on
   const lossHistory = [];
   if (eligible.length === 0) return lossHistory; // nobody liked two videos, so there is nothing to learn from
 
-  // How often each video turns up as an answer: its share of all the likes we draw from.
-  const likeCounts = new Float64Array(itemTags.length);
-  let likeTotal = 0;
+  // The chance that each video is drawn as an answer. We draw a person (all
+  // equally likely), then one of their likes (all equally likely). So each
+  // person gives 1 / (their number of likes) to each video they liked, and
+  // dividing the total by the number of people gives the chance.
+  const drawWeight = new Float64Array(itemTags.length);
   for (const user of eligible) {
-    for (const item of likedByUser[user]) likeCounts[item] += 1 / likedByUser[user].length; // each person is drawn equally often
-    likeTotal += 1;
+    for (const item of likedByUser[user]) drawWeight[item] += 1 / likedByUser[user].length;
   }
-  const logFrequency = likeCounts.map((count) => Math.log(Math.max(count, 1e-9) / likeTotal));
+  // A video nobody liked is never drawn, so its value is never used; the tiny floor only avoids log(0).
+  const logFrequency = drawWeight.map((weight) => Math.log(Math.max(weight, 1e-9) / eligible.length));
   for (let step = 1; step <= settings.stepCount; step++) {
     const batch = [];
     for (let b = 0; b < settings.batchSize; b++) {

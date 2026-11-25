@@ -41,7 +41,11 @@ export const UNSEEN = -1;
  */
 export const PASSED = -2;
 
-/** The model's settings. The lab lets you change factorCount; the rest are fixed. None was finely tuned. */
+/**
+ * The model's settings. On the main screen the lab lets you change factorCount
+ * and the rest are fixed. (The "Real people" panel uses its own factorCount,
+ * confidenceGain and sweepCount; see REAL_SETTINGS in ui.js.) None was finely tuned.
+ */
 export const DEFAULT_SETTINGS = {
   factorCount: 8, // k
   regularisation: 2, // lambda

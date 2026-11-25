@@ -1,10 +1,8 @@
-# Raw datasets are never committed (see scripts/build_data.py once it exists)
+# Raw datasets are never committed (scripts/build_data.py reads them from outside this folder)
 data/raw/
 
-# Dev-only tooling and its output
+# Dev-only tooling
 node_modules/
-test-results/
-playwright-report/
 
 # Built deliverables that do not belong in the source history
 demo/*.mp4

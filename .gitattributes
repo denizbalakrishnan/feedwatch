@@ -1,3 +1,3 @@
-# Files left out of the source zip made by scripts/make_zip.sh (git archive).
-data/** export-ignore
-.gitattributes export-ignore
+# Left out of the source zip made by scripts/make_zip.sh (git archive):
+# the data file is derived from a dataset we did not make.
+data export-ignore
