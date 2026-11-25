@@ -13,8 +13,8 @@ export function zeroMatrix(rowCount, columnCount) {
 
 /**
  * Dot product: multiply two vectors entry by entry and add the results.
- * It is large when the vectors point the same way. The whole feed is ranked
- * by this one number, taken between "you" and each video.
+ * It is large when the vectors point the same way. A video's score for you
+ * is its appeal plus this number, taken between your vector and the video's.
  */
 export function dot(a, b) {
   let sum = 0;

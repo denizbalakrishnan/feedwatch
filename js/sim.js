@@ -40,7 +40,7 @@ export function simulateCrowd({ userCount, itemCount, topicCount, noise, sparsit
   const random = makeRandom(seed);
 
   const itemTopics = new Int32Array(itemCount);
-  const itemAppeal = new Float64Array(itemCount); // some videos are simply better made
+  const itemAppeal = new Float64Array(itemCount); // some videos are better made than others
   for (let item = 0; item < itemCount; item++) {
     itemTopics[item] = item % topicCount;
     itemAppeal[item] = 0.1 * gaussian(random);

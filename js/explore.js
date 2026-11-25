@@ -4,7 +4,7 @@
 // Always showing the top-scoring video ("greedy") looks sensible, but the feed
 // then only ever learns about the corner of the map you are already in. That
 // is how a filter bubble forms. Exploring means sometimes showing a video the
-// model is NOT sure you will like, to find out.
+// model is not sure you will like, to find out.
 
 import { backSubstituteTranspose } from './linalg.js';
 import { gaussian } from './random.js';
@@ -12,8 +12,9 @@ import { UNSEEN, scoreItems, bestUnseen } from './mf.js';
 
 /**
  * Epsilon-greedy: with probability epsilon ignore the scores and show a
- * random unseen video; otherwise show the best one. Simple, but blind: the
- * random pick is as likely to be something you obviously dislike as not.
+ * random unseen video; otherwise show the best one. The random pick takes
+ * no account of what the model already knows, so it is as likely to be
+ * something you obviously dislike as not.
  */
 export function pickEpsilonGreedy(scores, myWatchRatios, epsilon, random) {
   if (random() >= epsilon) return bestUnseen(scores, myWatchRatios);
@@ -46,10 +47,11 @@ export function sampleUserVector(vector, lower, spread, random) {
 
 /**
  * Thompson sampling: instead of scoring with your best-guess vector, draw one
- * plausible vector (see above) and show the best video for THAT person.
+ * plausible vector (see above) and show the best video for that person.
  * When the model knows little about you the draws vary widely, so the feed
- * explores; as evidence builds up the draws agree and it settles down. It
- * explores where it is unsure, not at random.
+ * explores; as evidence builds up the draws agree and it settles down.
+ * Unlike epsilon-greedy, its exploring is aimed at what it is still unsure
+ * about.
  */
 export function pickThompson(foldIn, itemFactors, itemAppeal, myWatchRatios, spread, random) {
   const sampled = sampleUserVector(foldIn.vector, foldIn.lower, spread, random);

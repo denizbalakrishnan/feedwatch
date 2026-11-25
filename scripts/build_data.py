@@ -1,6 +1,6 @@
 """build_data.py: makes the small real-data file used by the "Real people" panel.
 
-It reads the raw KuaiRec download, which is NOT kept in this repository, and
+It reads the raw KuaiRec download, which is not kept in this repository, and
 writes data/kuairec_shown.json: for 1,000 real people and 800 real videos,
 one bit per pair saying whether the Kuaishou app showed that person that
 video. No captions, no user details and no original ID numbers are copied.

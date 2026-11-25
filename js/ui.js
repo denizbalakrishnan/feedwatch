@@ -1,9 +1,9 @@
 // ui.js: wires the whole page together.
 // It asks mf.js, linalg.js and explore.js for every number and hands the
 // results to the feed card (feed.js), the map (map.js) and the chart
-// (lab.js). Training runs in train.worker.js. This file trains nothing and
-// solves nothing itself: it calls the maths files. The only sums written out
-// here are small ones for display (a dot product, an average distance).
+// (lab.js). Training runs in train.worker.js. All the training and solving
+// is done by the maths files. The only sums written out here are small ones
+// for display (a dot product, an average distance).
 
 import {
   DEFAULT_SETTINGS, UNSEEN, PASSED, LIKE_AS_WATCH_RATIO, foldInUser, scoreItems, bestUnseen, preferenceOf, confidenceOf,
@@ -266,8 +266,8 @@ function showTower(result) {
       `hidden videos. Of each person's top ${result.topCount}, the share they really watched: first model ` +
       `${percent(result.firstPrecision)}, two-tower model ${percent(result.towerPrecision)} ` +
       `(${result.peopleMarked.toLocaleString('en')} people marked). Picking at random would score about ` +
-      `${percent(result.yesShare)}. This is not an even race: each video's tag here is its topic, the very thing ` +
-      'the first model has to work out for itself. The two-tower model is here for the brand-new video, not to win.';
+      `${percent(result.yesShare)}. The comparison favours the two-tower model: each video's tag here is its topic, ` +
+      'which the first model has to work out for itself. We include the two-tower model because it can place a brand-new video.';
   renderTowerPanel();
 }
 

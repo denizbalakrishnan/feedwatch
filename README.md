@@ -10,12 +10,12 @@ Built for the Global Virtual Hackathon 2026 (theme: Unveiling Technology).
 
 ## What you can do with it
 
-- **Swipe and like.** Every reaction is sent to the model as one number: the share of the video you watched, a fixed 2.0 for a like, or a "passed" marker if you skipped without playing it. Your dot on the taste map moves straight away.
-- **Reveal what the model never saw.** One switch colours every video by its topic. The topics form clear groups, although the model was never told a single topic.
-- **Switch exploration on and off.** With it off, a fan of one topic is sealed into a bubble within 20 swipes. Thompson sampling keeps showing them things the model is unsure about.
-- **Change what counts as evidence.** Likes only, watch time only, or both.
-- **Change the crowd and the model, and retrain.** Fewer people, more noise, more gaps, 2 to 16 numbers per video. A chart shows the error on cells the model trained on and on cells hidden from it, and a score marks the map against the hidden topics.
-- **Upload a brand-new video.** The first model cannot place a video nobody has watched. A second, modern kind of model (a two-tower neural network, trained in your browser with hand-written backpropagation, no library) places it at once from its tags. Both models are marked on the same hidden cells.
+- Swipe through the videos and like some. Each reaction is sent to the model as one number: the share of the video you watched, a fixed 2.0 for a like, or a "passed" marker if you skipped without playing it. Your dot on the taste map moves straight away.
+- Tick "Reveal what the model never saw" to colour every video by its topic. The topics form clear groups, although the model was never told a single topic.
+- Switch exploration off, and a fan of one topic is sealed into a bubble within 20 swipes. Switch it to Thompson sampling, and the feed keeps showing them things the model is unsure about.
+- Change what counts as evidence: likes only, watch time only, or both.
+- Change the crowd and the model, then retrain: fewer people, more noise, more gaps, 2 to 16 numbers per video. A chart shows the error on cells the model trained on and on cells hidden from it, and a score marks the map against the hidden topics.
+- Upload a brand-new video. The first model cannot place a video nobody has watched. A second, more modern model places it at once from its tags. It is a two-tower neural network, trained in your browser with hand-written backpropagation and no library. Both models are marked on the same hidden cells.
 
 ## How it works
 
@@ -33,22 +33,22 @@ Built for the Global Virtual Hackathon 2026 (theme: Unveiling Technology).
 
 ## What is computed and what is drawn by hand
 
-Computed in your browser, from the grid and from your reactions: the crowd, the model, your vector, every score, the position of every dot, the bubble meter, the error chart and the recovery score. Nothing is pre-trained. Nothing is fetched after the page loads, except our own real-data file when you press the button in the "Real people" panel.
+Computed in your browser, from the grid and from your reactions: the crowd, the model, your vector, every score, the position of every dot, the bubble meter, the error chart and the recovery score. Nothing is pre-trained, and nothing is fetched after the page loads except our own real-data file when you press the button in the "Real people" panel.
 
 Drawn by hand: the card art, titles and icons (made up from each video's topic, and never shown to the model); the overall size of your dot's movement relative to the videos (people's and videos' lists of numbers come out at different typical sizes, so for drawing only we scale your dot to match the videos).
 
 ## What we simplified, and what did not work
 
-- **The crowd on the first screen is simulated.** We tried the real KuaiRec dataset first, expecting its videos to group by topic the same way. They did not.
+- The crowd on the first screen is simulated. We tried the real KuaiRec dataset first and expected its videos to group by topic the same way, but they did not.
   - In the part of KuaiRec where every person saw every video (1,411 people, 3,327 videos), the typical viewer watches between 7.3 and 7.8 seconds of four videos in five, although the videos run from about 6 to 22 seconds. Watch ratio there is mostly a measure of video length. Once that is removed, a video's nearest neighbour shares its category 14% of the time, against 10% for guessing.
   - In the larger part, which records which videos the app chose to show each person, topic does show up: 38% against 10% in the model's 16 dimensions. But on a flat two-dimensional map it falls back to 10%.
   - The "Real people" panel runs that second test live, on 1,000 real people and 800 real videos, so you can see the muddle for yourself.
-  - We would rather show a simulation that says it is one than a real-data picture that does not show what we claim.
+  - So the first screen uses a simulation and says so, because the real-data picture does not show what we claim.
   - What you can check from this repository: the 38% and 10% come from the "Real people" panel, live. The seconds-watched figure and the 14% came from our own analysis of the raw KuaiRec download while building; that analysis code is not included here.
 - Real platforms use many more signals, far bigger models and several ranking stages.
-- The two-tower model reads one tag per video, and that tag is the video's topic: the very thing the first model has to work out for itself. So the accuracy comparison between the two is not an even race, and the page says so. Real two-tower models read the picture, the sound and the caption. Every video it trained on had exactly one tag; the upload panel lets you tick several, which is beyond anything it has seen.
+- The two-tower model reads one tag per video, and that tag is the video's topic, which the first model has to work out for itself. The accuracy comparison therefore favours the two-tower model, and the page says so. Real two-tower models read the picture, the sound and the caption. Every video it trained on had exactly one tag; the upload panel lets you tick several, which is beyond anything it has seen.
 - Our two-tower model keeps the 2019 paper's correction for popular videos, but leaves out scaling vectors to length 1, predicting a person's next video rather than any liked one, and removing from a batch the "wrong answers" that the person in fact liked.
-- The confidence formula is our own. An instant skip counts about twice as firmly as watching a video to the end, and a like counts most of all.
+- The confidence formula is our own. Starting a video and leaving at once counts about twice as firmly as watching it to the end, and a like counts most of all.
 - A video only "plays" when you tap it. A real feed plays by itself; here that made time spent reading the page count as time spent watching. Because of this, skipping a video you never started counts as only a faint "no" (a quarter of the weakest watched one), while starting a video and giving up on it counts firmly.
 - The "explore where unsure" setting treats the noise in one reaction as 1 and the video vectors as exactly known, so its spread is a dial, not a calibrated probability.
 - With no history at all, the two-tower model gives everybody the same single guess, which tends to be one topic. The first model falls back on general appeal and gives a mix.
@@ -67,7 +67,7 @@ Drawn by hand: the card art, titles and icons (made up from each video's topic, 
 | KuaiRec dataset (Gao et al., CIKM 2022, https://kuairec.com, CC BY-SA 4.0) | `data/kuairec_shown.json`, the "Real people" panel | Real short-video data that may be shared; our file is a subsample made by `scripts/build_data.py` and is shared under the same licence |
 | mulberry32 random number recipe (Tommy Ettinger, public domain) | `js/random.js` | A few lines, repeatable from a seed |
 | Seven colours from the Okabe-Ito palette, and two from Paul Tol's "muted" set for the ten real categories | `js/ui.js` | They stay distinct for colour-blind viewers; topics are also named in words |
-| Claude Code (AI coding tool) | Throughout | Used to write code and tests, which we then read, questioned and learned to explain |
+| Claude Code (AI coding tool) | Throughout | It wrote most of the code and tests, which we then read and learned to explain |
 | Playwright and ffmpeg | Not in the site; used while building | To test the page at laptop and phone sizes and to record the demo video |
 
 No libraries, frameworks or build tools are used by the site.

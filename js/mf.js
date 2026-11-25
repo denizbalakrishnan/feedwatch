@@ -37,7 +37,8 @@ export const UNSEEN = -1;
 /**
  * Marks a video the person was shown but moved past without playing. In our
  * feed a video only plays when tapped, so a pass says much less than
- * starting a video and giving up on it: it is a hint, not a verdict.
+ * starting a video and giving up on it. It counts as a faint "no"
+ * (see passConfidence below).
  */
 export const PASSED = -2;
 
@@ -86,7 +87,8 @@ export function confidenceOf(watchRatio, settings) {
 }
 
 /**
- * The one equation the whole model is built from.
+ * Solves for one person's vector (or one video's). Training and the fold-in
+ * both call this.
  * Holding the other side's vectors v still, the best vector x for one person
  * (or one video) solves a ridge regression:
  *     (sum of c v v-transpose + lambda I) x = sum of c (p - alreadyExplained) v

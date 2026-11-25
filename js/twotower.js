@@ -4,13 +4,13 @@
 //
 // Matrix factorisation gives each video its own free list of numbers, so a
 // video nobody has watched yet has no list at all: the feed cannot place it.
-// A two-tower model instead COMPUTES a video's list from things known about
+// A two-tower model instead computes a video's list from things known about
 // it (here: its tags), and a person's list from the videos they liked. One
 // tower for videos, one for people; the score is still a dot product.
 // The design is from Covington et al. (2016) and Yi et al. (2019). We keep
 // the two towers, the in-batch softmax and the 2019 paper's correction for
 // popular videos. We leave out: scaling the vectors to length 1 with a
-// "temperature", predicting a person's NEXT video rather than any one they
+// "temperature", predicting a person's next video rather than any one they
 // liked, and removing from a batch the "wrong answers" a person in fact liked.
 //
 //   video tower:  [the video's own ID numbers, its tags] -> hidden layer -> output
@@ -78,7 +78,7 @@ export function reluBackward(values, outputGradient) {
  * Softmax with cross-entropy loss. Softmax turns a row of scores into
  * probabilities that add up to 1; the loss is minus the log of the
  * probability given to the right answer. Returns the loss and its gradient
- * with respect to each score, which is simply (probability - 1) for the
+ * with respect to each score, which is (probability - 1) for the
  * right answer and (probability) for every wrong one.
  */
 export function softmaxCrossEntropy(scores, correctIndex) {

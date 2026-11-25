@@ -1,4 +1,4 @@
-// Tests for twotower.js. The heart of this file is the numerical gradient
+// Tests for twotower.js. The main test here is the numerical gradient
 // check: nudge one number, see how much the loss really changes, and compare
 // that with what our hand-written backward pass claims.
 import test from 'node:test';
@@ -17,7 +17,7 @@ const NUDGE = 1e-5;
 
 /**
  * Asserts two gradients agree to about five significant figures. Gradients
- * that are both essentially zero also count as agreeing: the video tower's
+ * that are both zero or almost zero also count as agreeing: the video tower's
  * output bias is one, because adding the same amount to every video's vector
  * shifts all of one person's scores equally, and a softmax ignores that.
  */

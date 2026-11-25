@@ -63,7 +63,7 @@ self.onmessage = (event) => {
 };
 
 /**
- * The "Real people" panel: trains the very same first model on a grid from a
+ * The "Real people" panel: trains the same first model on a grid from a
  * real app, where each cell is 1 if the app showed that person that video
  * and 0 if it did not.
  */

@@ -2,8 +2,6 @@
 
 For `demo.mp4` (2:51). Two readers, A and B. Read at an easy pace, about two and a half words a second, and start each line when its caption appears. Times are from the final video and are approximate. The caption on screen is given under each heading so you can keep in step.
 
----
-
 ## Scene 1. Opening (0:00 to 0:10)
 
 Caption: "A short-video feed has never watched a single video." then, at 0:04, "All it is given is a grid of numbers: who watched what, and for how long."

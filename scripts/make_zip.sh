@@ -1,10 +1,11 @@
 #!/bin/sh
 # make_zip.sh: builds the source zip for the hackathon's Round 1 form.
 #
-# It packs exactly the files committed to git, so nothing stray gets in:
-# no raw data, no dev tools, no videos. The .gitattributes file also keeps
-# out data/, because that file is derived from a dataset we did not make and
-# the form asks for our own code only.
+# It packs only files committed to git, so raw data, dev tools and videos
+# cannot get in. The .gitattributes file also keeps out two committed folders:
+# data/, because that file is derived from a dataset we did not make and the
+# form asks for our own code only, and demo/, which holds the video's
+# voiceover script.
 #
 # Usage, from the project folder:   sh scripts/make_zip.sh
 set -e
