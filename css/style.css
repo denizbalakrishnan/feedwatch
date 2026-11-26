@@ -3,18 +3,20 @@
 /* ---------- design tokens: the main colours, gaps and timings are named once ---------- */
 
 :root {
-  --color-background: #0d1220;
-  --color-surface: #161d2e;
-  --color-surface-raised: #1f2739;
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-strong: rgba(255, 255, 255, 0.24);
-  --color-text: #f5f6f8;
-  --color-text-muted: #aab2c3;
+  --color-background: #121211; /* warm near-black, flat: no glow and no shadows anywhere */
+  --color-surface: #191917;
+  --color-surface-raised: #232320;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-strong: rgba(255, 255, 255, 0.3);
+  --color-text: #efeee8;
+  --color-text-muted: #a9a79c;
   --color-you: #ffd84d; /* your dot, focus rings, the one highlight colour */
-  --color-like: #db2777; /* white text on this passes 4.5:1 */
-  --color-like-bright: #ff5c93;
-  --color-dot: #8a93a3; /* a video before the reveal */
+  --color-like-bright: #ff6b5e; /* the heart once you have liked a video */
+  --color-dot: #8f8d84; /* a video before the reveal */
   --color-negative: #56b4e9;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, Menlo, monospace;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -24,9 +26,9 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  --radius-control: 12px;
-  --radius-panel: 18px;
-  --radius-card: 24px;
+  --radius-control: 3px;
+  --radius-panel: 4px;
+  --radius-card: 6px;
 
   --motion-fast: 150ms;
   --motion-medium: 280ms;
@@ -43,11 +45,7 @@
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1100px 480px at 15% -10%, rgba(219, 39, 119, 0.13), transparent 60%),
-    radial-gradient(900px 420px at 95% 0%, rgba(86, 180, 233, 0.09), transparent 60%),
-    var(--color-background);
-  background-repeat: no-repeat;
+  background: var(--color-background);
   color: var(--color-text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 16px;
@@ -75,9 +73,10 @@ body {
 
 .hero h1 {
   margin: var(--space-1) 0;
-  font-size: clamp(1.45rem, 3.4vw, 2.4rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 3.8vw, 2.7rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
   line-height: 1.12;
 }
 .hero p { margin: 0 0 var(--space-4); color: var(--color-text-muted); font-size: clamp(1rem, 1.6vw, 1.15rem); }
@@ -93,7 +92,7 @@ body {
   border-radius: var(--radius-card);
   overflow: hidden;
   background: #000;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--color-border);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
   cursor: grab;
   touch-action: pan-y; /* a sideways drag is our swipe; an up-or-down drag still scrolls the page */
   user-select: none;
@@ -108,10 +107,9 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: var(--card-colour, var(--color-surface-raised));
   background:
     repeating-linear-gradient(var(--card-angle, 30deg), rgba(255, 255, 255, 0.08) 0 14px, transparent 14px 34px),
-    linear-gradient(165deg, var(--card-colour, var(--color-surface-raised)), color-mix(in srgb, var(--card-colour, var(--color-surface-raised)) 30%, #000));
+    var(--card-colour, var(--color-surface-raised));
 }
 
 .card-face.entering { animation: rise var(--motion-medium) ease-out; }
@@ -127,7 +125,6 @@ body {
   display: grid;
   place-items: center;
   font-size: clamp(3.5rem, 12vh, 6.5rem);
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
 }
 
 .card-heart {
@@ -144,6 +141,7 @@ body {
   transition: transform var(--motion-medium) ease-out, color var(--motion-fast) ease-out;
 }
 .card-heart .icon { width: 26px; height: 26px; }
+.card-heart:hover { background: rgba(0, 0, 0, 0.45); }
 .card-heart.on { color: var(--color-like-bright); transform: scale(1.2); }
 
 /* the play sign beside the watch bar is bright while the video is paused and dim while it plays */
@@ -158,7 +156,7 @@ body {
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: rgba(0, 0, 0, 0.45);
   font-size: 0.8rem;
   font-weight: 600;
@@ -187,19 +185,20 @@ button {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
-  background: var(--color-surface-raised);
+  background: transparent;
   color: var(--color-text);
   font: inherit;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
   transition: background-color var(--motion-fast) ease-out, border-color var(--motion-fast) ease-out, transform var(--motion-fast) ease-out;
 }
-button:hover { border-color: rgba(255, 255, 255, 0.5); }
+button:hover { border-color: var(--color-text); background: var(--color-surface-raised); }
 button:active { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-button.like { background: var(--color-like); border-color: var(--color-like); color: #fff; }
-button.like:hover { background: #c81f69; border-color: #c81f69; }
+/* the one main action is the page's colours turned inside out: light fill, dark text */
+button.like { background: var(--color-text); border-color: var(--color-text); color: var(--color-background); }
+button.like:hover { background: #fff; border-color: #fff; }
 
 /* the sentence that carries the argument, so it is full size and full brightness */
 .reading { min-height: 4.5em; margin: var(--space-3) 2px 0; font-size: 1rem; }
@@ -214,7 +213,6 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
 }
 #map { display: block; width: 100%; height: min(56vh, 500px); min-height: 280px; }
 
@@ -225,13 +223,13 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
   min-height: 44px;
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-  background: var(--color-surface-raised);
-  font-weight: 650;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-weight: 600;
   cursor: pointer;
   transition: border-color var(--motion-fast) ease-out, background-color var(--motion-fast) ease-out;
 }
-.reveal:hover { border-color: rgba(255, 255, 255, 0.5); }
+.reveal:hover { border-color: var(--color-text); }
 .reveal input { width: 20px; height: 20px; margin: 0; accent-color: var(--color-you); cursor: pointer; }
 /* after three reactions the switch pulses three times, then stays outlined */
 .reveal.nudge { border-color: var(--color-you); background: rgba(255, 216, 77, 0.12); animation: nudge 1.4s ease-in-out 3; }
@@ -243,19 +241,19 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
 
 /* ---------- below the fold: the take-apart lab ---------- */
 
-.lab { margin-top: var(--space-6); }
-.panel { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
-.panel summary { display: flex; align-items: center; flex-wrap: wrap; min-height: var(--touch-target); padding: var(--space-3) var(--space-4); font-weight: 700; cursor: pointer; }
-.panel summary::before { content: "▸"; margin-right: var(--space-2); transition: transform var(--motion-fast) ease-out; }
-.panel[open] summary::before { transform: rotate(90deg); }
+/* The panels are a numbered, ruled list, like the sections of a lab sheet, not a stack of boxes. */
+.lab { margin-top: var(--space-6); border-bottom: 1px solid var(--color-border-strong); counter-reset: panel; }
+.panel { border-top: 1px solid var(--color-border-strong); counter-increment: panel; }
+.panel summary { position: relative; display: flex; align-items: baseline; flex-wrap: wrap; min-height: var(--touch-target); padding: var(--space-3) var(--space-7) var(--space-3) 0; font-size: 1.05rem; font-weight: 600; cursor: pointer; }
+.panel summary::before { content: counter(panel, decimal-leading-zero); margin-right: var(--space-3); color: var(--color-text-muted); font-family: var(--font-mono); font-size: 0.8rem; font-weight: 400; }
+.panel summary::after { content: "+"; position: absolute; top: var(--space-2); right: var(--space-2); color: var(--color-text-muted); font-family: var(--font-mono); font-size: 1.3rem; font-weight: 400; }
+.panel[open] summary::after { content: "\2212"; }
 .panel summary::-webkit-details-marker { display: none; }
-.panel summary:hover { background: rgba(255, 255, 255, 0.04); }
-.summary-note { margin-left: var(--space-2); color: var(--color-text-muted); font-weight: 400; }
-.panel-body { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: var(--space-5); padding: var(--space-1) var(--space-4) var(--space-4); }
+.panel summary:hover::after { color: var(--color-text); }
+.summary-note { margin-left: var(--space-2); color: var(--color-text-muted); font-size: 1rem; font-weight: 400; }
+.panel-body { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: var(--space-5); padding: var(--space-1) 0 var(--space-5); }
 .panel-body h3 { margin: var(--space-4) 0 var(--space-2); font-size: 1rem; }
 .panel-body p { max-width: 68ch; margin: 0 0 var(--space-2); }
-
-.panel + .panel { margin-top: var(--space-3); }
 
 .choices { margin: 0; padding: 0; border: 0; }
 .choices label { display: flex; align-items: flex-start; gap: var(--space-3); min-height: 44px; padding: var(--space-2) 0; cursor: pointer; }
@@ -272,7 +270,7 @@ button.like:hover { background: #c81f69; border-color: #c81f69; }
 .legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0; padding: 0; list-style: none; font-size: 0.88rem; }
 .legend li { display: flex; align-items: center; gap: var(--space-2); }
 .swatch { width: 12px; height: 12px; border-radius: 50%; }
-a { color: var(--color-you); }
+a { color: var(--color-text); text-decoration-color: var(--color-you); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
 .two-lists { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .two-lists h4 { margin: 0 0 var(--space-1); color: var(--color-text-muted); font-size: 0.9rem; font-weight: 600; }
@@ -283,8 +281,8 @@ a { color: var(--color-you); }
 .slider input { width: 100%; min-height: 44px; accent-color: var(--color-you); cursor: pointer; }
 .slider-note { grid-column: 1 / -1; color: var(--color-text-muted); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
 
-.meter { height: 14px; margin: var(--space-2) 0; border-radius: 7px; overflow: hidden; background: var(--color-surface-raised); }
-.meter-fill { width: 0; height: 100%; border-radius: 7px; background: var(--color-you); transition: width var(--motion-medium) ease-out; }
+.meter { height: 14px; margin: var(--space-2) 0; overflow: hidden; background: var(--color-surface-raised); }
+.meter-fill { width: 0; height: 100%; background: var(--color-you); transition: width var(--motion-medium) ease-out; }
 
 .inline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
 select {
@@ -299,19 +297,19 @@ select {
 }
 
 .vector-row { display: grid; grid-template-columns: 1.4em 1fr 3.4em; align-items: center; gap: var(--space-2); margin: 6px 0; font-variant-numeric: tabular-nums; }
-.vector-name { color: var(--color-text-muted); }
-.vector-track { position: relative; height: 12px; border-radius: 6px; background: var(--color-surface-raised); }
+.vector-name { color: var(--color-text-muted); font-family: var(--font-mono); font-size: 0.85rem; }
+.vector-track { position: relative; height: 12px; background: var(--color-surface-raised); }
 .vector-track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--color-border-strong); }
-.vector-fill { position: absolute; left: 50%; top: 0; bottom: 0; border-radius: 0 6px 6px 0; background: var(--color-you); transition: width var(--motion-medium) ease-out; }
-.vector-fill.negative { left: auto; right: 50%; border-radius: 6px 0 0 6px; background: var(--color-negative); }
-.vector-value { text-align: right; }
+.vector-fill { position: absolute; left: 50%; top: 0; bottom: 0; background: var(--color-you); transition: width var(--motion-medium) ease-out; }
+.vector-fill.negative { left: auto; right: 50%; background: var(--color-negative); }
+.vector-value { text-align: right; font-family: var(--font-mono); font-size: 0.85rem; }
 
 .evidence { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 .evidence th, .evidence td { padding: 6px var(--space-2) 6px 0; border-bottom: 1px solid var(--color-border); text-align: left; }
 .evidence th { color: var(--color-text-muted); font-weight: 600; }
 #upNext { margin: 0; padding-left: 1.3em; font-variant-numeric: tabular-nums; }
 
-.footer { max-width: 75ch; margin-top: var(--space-6); color: var(--color-text-muted); font-size: 0.85rem; }
+.footer { max-width: 75ch; margin-top: var(--space-5); color: var(--color-text-muted); font-size: 0.85rem; }
 
 /* ---------- phones: card on top, map straight below, both on one screen ---------- */
 
@@ -319,7 +317,7 @@ select {
   .page { padding: var(--space-3) max(var(--space-3), env(safe-area-inset-right)) var(--space-7) max(var(--space-3), env(safe-area-inset-left)); }
   .hero p { margin-bottom: var(--space-3); }
   .stage { grid-template-columns: 1fr; gap: var(--space-3); }
-  .card { height: clamp(180px, 25vh, 250px); min-height: 0; border-radius: 20px; }
+  .card { height: clamp(180px, 25vh, 250px); min-height: 0; }
   .card-icon { font-size: clamp(3rem, 9vh, 4.5rem); }
   .feed-buttons { margin-top: var(--space-2); }
   .reading { min-height: 4.5em; margin-top: var(--space-2); font-size: 0.95rem; }
@@ -331,5 +329,5 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .card-face.entering, .card-face.loading, .reveal.nudge, .swipe-hint, .card.playing .card-icon { animation: none; }
-  .card-heart, .card-play, button, .vector-fill, .meter-fill, .reveal, .panel summary::before { transition: none; }
+  .card-heart, .card-play, button, .vector-fill, .meter-fill, .reveal { transition: none; }
 }
